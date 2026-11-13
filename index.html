@@ -3,11 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#050507">
+<meta name="theme-color" content="#000">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23000'/%3E%3Cpath d='M19 47V17h6.5l13 19.5V17H45v30h-6.5l-13-19.5V47z' fill='%23fff'/%3E%3C/svg%3E">
 <title>N-Back</title>
 <style>
   :root{
-    --bg:#050507;
+    --bg:#000;
     --panel:#0b0b0f;
     --panel2:#101016;
     --line:rgba(255,255,255,.08);
@@ -36,12 +37,6 @@
     font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     -webkit-font-smoothing:antialiased;
     -webkit-tap-highlight-color:transparent;
-  }
-  body::before{
-    content:"";
-    position:fixed;inset:0;z-index:0;pointer-events:none;
-    background:radial-gradient(900px 520px at 50% -12%,rgba(120,140,255,.10),transparent 70%),
-               radial-gradient(600px 400px at 90% 110%,rgba(255,120,220,.05),transparent 70%);
   }
   body.inGame{overflow:hidden}
   button{font:inherit;color:inherit}
