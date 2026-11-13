@@ -1,0 +1,3454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#050507">
+<title>N-Back</title>
+<style>
+  :root{
+    --bg:#050507;
+    --panel:#0b0b0f;
+    --panel2:#101016;
+    --line:rgba(255,255,255,.08);
+    --line2:rgba(255,255,255,.14);
+    --text:#ececf1;
+    --muted:#8e8e9a;
+    --dim:#5e5e6b;
+    --good:#4ade80;
+    --bad:#fb7185;
+    --warn:#fbbf24;
+    /* Golden-ratio scale: every step is the previous one x 1.618. Used for
+       the setup screen's spacing, type sizes and column split. */
+    --phi:1.618;
+    --sp-1:8px;
+    --sp-2:13px;
+    --sp-3:21px;
+    --sp-4:34px;
+    --sp-5:55px;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    -webkit-tap-highlight-color:transparent;
+  }
+  body::before{
+    content:"";
+    position:fixed;inset:0;z-index:0;pointer-events:none;
+    background:radial-gradient(900px 520px at 50% -12%,rgba(120,140,255,.10),transparent 70%),
+               radial-gradient(600px 400px at 90% 110%,rgba(255,120,220,.05),transparent 70%);
+  }
+  body.inGame{overflow:hidden}
+  button{font:inherit;color:inherit}
+  h1,h2,h3,p{margin:0}
+  .hidden{display:none !important}
+  .screen{position:relative;z-index:1}
+
+  /* ---------- shared controls ---------- */
+  .btn{
+    border:1px solid var(--line2);background:#12121a;color:#ececf1;
+    border-radius:12px;padding:11px 18px;font-size:14px;font-weight:600;cursor:pointer;
+    transition:transform .15s,background .15s,border-color .15s,box-shadow .15s;
+  }
+  .btn:hover{background:#191924;border-color:#2f2f3d}
+  .btn.primary{background:#fff;color:#08080b;border-color:#fff}
+  .btn.primary:hover{box-shadow:0 10px 30px rgba(255,255,255,.14);transform:translateY(-1px)}
+  .btn.ghost{background:#0d0d13;color:#c7c7d4;border-color:var(--line2)}
+  .btn.sm{padding:8px 12px;font-size:12.5px;border-radius:10px}
+  .iconBtn{
+    background:#0a0a0e;border:1px solid var(--line2);border-radius:10px;
+    padding:9px 14px;font-size:12.5px;color:#c7c7d4;cursor:pointer;transition:.15s;
+  }
+  .iconBtn:hover{background:#15151d;color:#fff}
+  .seg{display:flex;background:#07070b;border:1px solid var(--line);border-radius:12px;padding:3px;gap:3px;margin-bottom:12px}
+  .seg button{
+    flex:1;border:0;background:transparent;color:var(--muted);padding:8px 10px;
+    border-radius:9px;font-size:13px;cursor:pointer;transition:.15s;font-weight:550;
+  }
+  .seg button:hover{color:#d3d3de}
+  .seg button.on{background:#1d1d26;color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.07)}
+  .card{
+    background:linear-gradient(180deg,var(--panel2),var(--panel));
+    border:1px solid var(--line);border-radius:18px;padding:21px;
+    display:flex;flex-direction:column;
+  }
+  /* Cards in a row are equal height, and the trailing note sinks to the
+     bottom edge — that is what makes the grid look level rather than ragged. */
+  .card > .note:last-child{margin-top:auto;padding-top:10px}
+  .card-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:10px}
+  .card h2{font-size:11.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--muted);font-weight:650}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-top:1px solid rgba(255,255,255,.035)}
+  .row:first-of-type{border-top:0}
+  .row.tight{padding:6px 0}
+  .lbl{font-size:13px;color:#b9b9c6}
+  .unit{font-size:11.5px;color:var(--dim)}
+  .note{font-size:11.5px;color:var(--dim);line-height:1.5;margin-top:10px}
+  .subhead{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--dim);margin:16px 0 6px}
+  .subhead:first-of-type{margin-top:0}
+  .dims{display:flex;align-items:center;gap:6px}
+  .dims .x{color:var(--dim);font-size:12px}
+  input[type=number]{
+    width:62px;background:#08080c;border:1px solid var(--line2);color:var(--text);
+    border-radius:9px;padding:8px 4px;text-align:center;font-size:14px;
+    font-variant-numeric:tabular-nums;
+  }
+  input[type=number]:focus{outline:none;border-color:#5b6a9e;box-shadow:0 0 0 3px rgba(110,130,220,.15)}
+  input[type=range]{
+    -webkit-appearance:none;appearance:none;height:4px;border-radius:99px;
+    background:#22222b;flex:1;max-width:160px;outline:none;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:#fff;
+    border:none;box-shadow:0 0 0 4px rgba(255,255,255,.08);cursor:pointer;
+  }
+  input[type=range]::-moz-range-thumb{
+    width:16px;height:16px;border-radius:50%;background:#fff;border:none;
+    box-shadow:0 0 0 4px rgba(255,255,255,.08);cursor:pointer;
+  }
+  output{font-size:12px;color:var(--muted);min-width:58px;text-align:right;font-variant-numeric:tabular-nums}
+  .chk{display:flex;align-items:center;gap:9px;font-size:13.5px;color:#c9c9d4;cursor:pointer;padding:6px 0;line-height:1.3}
+  .chk input{
+    appearance:none;-webkit-appearance:none;width:18px;height:18px;border-radius:5px;
+    border:1px solid #33333f;background:#08080c;position:relative;cursor:pointer;
+    flex:0 0 auto;transition:.15s;margin:0;
+  }
+  .chk input:checked{background:#fff;border-color:#fff}
+  .chk input:checked::after{
+    content:"";position:absolute;left:5px;top:2px;width:6px;height:10px;
+    border:solid #000;border-width:0 2px 2px 0;transform:rotate(45deg);
+  }
+  .chk input:disabled{opacity:.45;cursor:default}
+  .chk input:focus-visible{outline:2px solid #6b7cff;outline-offset:2px}
+  .streams{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
+  .dot{display:inline-block;width:7px;height:7px;border-radius:50%;flex:0 0 auto}
+  textarea{
+    width:100%;min-height:70px;background:#08080c;border:1px solid var(--line2);
+    color:var(--text);border-radius:10px;padding:9px 11px;font:inherit;font-size:13px;
+    resize:vertical;margin-top:8px;
+  }
+  textarea:focus{outline:none;border-color:#5b6a9e;box-shadow:0 0 0 3px rgba(110,130,220,.15)}
+  .keys{display:grid;gap:2px}
+  .keyRow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:5px 0}
+  .keyRow span{font-size:13px;color:#b9b9c6}
+  .keyBtn{
+    min-width:84px;background:#08080c;border:1px solid var(--line2);border-radius:9px;
+    padding:8px 12px;font-size:12px;font-weight:650;letter-spacing:.06em;color:#e6e6ef;
+    cursor:pointer;transition:.15s;
+  }
+  .keyBtn:hover{border-color:#3a3a48;background:#121219}
+  .keyBtn.capturing{border-color:#8b9cff;color:#cdd5ff;box-shadow:0 0 0 3px rgba(120,140,255,.15)}
+  .shapeSvg{width:90%;height:90%;display:block}
+  .thumbs{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}
+  .thumb{position:relative;width:44px;height:44px;border-radius:9px;overflow:hidden;border:1px solid var(--line2)}
+  .thumb img{width:100%;height:100%;object-fit:cover;display:block}
+  .thumb button{
+    position:absolute;right:1px;top:1px;width:16px;height:16px;border-radius:5px;border:0;
+    background:rgba(0,0,0,.72);color:#fff;font-size:11px;line-height:1;cursor:pointer;padding:0;
+  }
+
+  /* ---------- setup ---------- */
+  #setup{max-width:1120px;margin:0 auto;padding:var(--sp-4) var(--sp-3) 150px}
+  /* 1.618 : 1 hero split; the info card is the short side, the title the long
+     one, so the two blocks read as one balanced composition. */
+  .setup-head{display:grid;grid-template-columns:1.618fr 1fr;gap:var(--sp-3);align-items:stretch;margin-bottom:var(--sp-3)}
+  h1{font-size:clamp(30px,3.4vw,44px);line-height:1.06;letter-spacing:-.03em;margin:0 0 var(--sp-1);font-weight:700}
+  .sub{color:var(--muted);font-size:14px;line-height:var(--phi);max-width:46ch}
+  .headCard{justify-content:center;gap:var(--sp-2);padding:var(--sp-3)}
+  .miniGrid{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-2);text-align:left}
+  .miniGrid .k{font-size:10px;text-transform:uppercase;letter-spacing:.14em;color:var(--muted)}
+  .miniGrid .v{font-size:23px;font-weight:700;margin-top:3px;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+  /* Two equal columns keep every row level, and the wide Streams card spans
+     both so the card block stays symmetric however many settings follow. */
+  .cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--sp-2);align-items:stretch}
+  .cards > .card:first-child{grid-column:1/-1}
+  .cards > .card:first-child .streams{grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:0 21px}
+  .startbar{
+    position:fixed;left:0;right:0;bottom:0;z-index:30;display:flex;align-items:center;
+    justify-content:center;gap:20px;padding:16px 20px calc(16px + env(safe-area-inset-bottom));
+    background:linear-gradient(180deg,rgba(5,5,7,0),rgba(5,5,7,.88) 38%,#050507);
+  }
+  #setupHint{font-size:12.5px;color:var(--muted);max-width:560px;text-align:right;line-height:1.45}
+
+  /* ---------- game ---------- */
+  #game{min-height:100dvh;display:flex;flex-direction:column;padding:16px clamp(12px,3vw,32px) 10px;user-select:none}
+  /* 1fr / auto / 1fr keeps the centre column truly centred no matter how wide
+     the N badge and the timer cluster grow. */
+  .gameTop{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:16px;width:100%;max-width:1080px;margin:0 auto}
+  .gameTop > .nBadge{justify-self:start}
+  .nBadge{
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    min-width:62px;height:62px;border-radius:16px;border:1px solid var(--line2);background:#0a0a10;
+  }
+  .nBadge.pulse{animation:nPulse .6s ease}
+  @keyframes nPulse{0%{box-shadow:0 0 0 0 rgba(180,195,255,.35)}100%{box-shadow:0 0 0 14px rgba(180,195,255,0)}}
+  .nLabel{font-size:9px;letter-spacing:.2em;color:var(--muted);text-transform:uppercase;margin-bottom:2px}
+  #nVal{font-size:26px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+  .gameTopMid{display:flex;flex-direction:column;align-items:center;gap:9px;max-width:520px}
+  .chips{display:flex;gap:7px;flex-wrap:wrap;justify-content:center}
+  .chip{
+    display:flex;align-items:center;gap:7px;font-size:11.5px;color:#c2c2cf;
+    border:1px solid var(--line);background:#09090e;border-radius:99px;padding:4px 9px;
+  }
+  .chip.hit{animation:chipflash .4s ease}
+  @keyframes chipflash{0%{background:#2b3550;border-color:#6172a8}100%{background:#09090e;border-color:var(--line)}}
+  kbd{
+    font:inherit;font-size:10.5px;background:#1b1b23;border:1px solid #2c2c38;border-bottom-width:2px;
+    border-radius:5px;padding:1px 5px;color:#e6e6ef;text-transform:uppercase;letter-spacing:.02em;
+  }
+  .blocksStat{display:flex;flex-direction:column;align-items:center;gap:2px}
+  .blocksStat .k{font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted)}
+  .blocksStat .v{font-size:26px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+  .blocksStat .v small{font-size:13px;font-weight:600;color:var(--dim);letter-spacing:0}
+  .gameTopRight{display:flex;align-items:center;justify-self:end;gap:10px}
+  .timer{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;min-width:46px;text-align:right}
+  .stageWrap{flex:1;display:flex;align-items:center;justify-content:center;min-height:0;padding:8px 0}
+  .stage{position:relative;display:flex;align-items:center;justify-content:center}
+  .board2d{display:grid}
+  .cell{
+    position:relative;border-radius:12px;border:1px solid rgba(255,255,255,.075);
+    background:rgba(255,255,255,.018);
+  }
+  /* The tile fills its cell exactly — no inset, no offset. The radius is
+     inherited from the cell so the two silhouettes match. */
+  .tile{
+    position:absolute;inset:0;border-radius:inherit;opacity:0;transform:scale(.9);
+    transition:opacity .1s ease,transform .1s ease;display:flex;align-items:center;justify-content:center;
+    overflow:hidden;background:#fff;
+  }
+  .tile.show{opacity:1;transform:scale(1);box-shadow:0 0 26px rgba(255,255,255,.18)}
+  /* 3D view: a single canvas. Lines are stroked at a constant pixel width and
+     anti-aliased by the rasteriser, so nothing thins out or stair-steps as the
+     lattice turns. */
+  .scene3d{position:relative}
+  .cv3d{display:block;width:100%;height:100%}
+  .stageFoot{padding:2px 0 6px;display:flex;justify-content:center;min-height:22px}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;color:var(--dim);font-size:11.5px}
+  .leg{display:flex;align-items:center;gap:6px}
+  .leg kbd{opacity:.9}
+
+  /* ---------- mobile bar ---------- */
+  .mobileBar{
+    position:fixed;left:0;right:0;bottom:0;z-index:45;display:grid;grid-auto-flow:column;gap:8px;
+    padding:10px 10px calc(10px + env(safe-area-inset-bottom));
+    background:rgba(6,6,9,.94);backdrop-filter:blur(16px);border-top:1px solid var(--line);
+  }
+  .mobileBar button{
+    height:70px;border-radius:16px;border:1px solid #26262f;background:#111118;
+    color:#ececf4;font-size:12.5px;font-weight:650;letter-spacing:.02em;
+    display:flex;align-items:center;justify-content:center;cursor:pointer;
+    touch-action:manipulation;user-select:none;
+  }
+  .mobileBar button.press{background:#2a2a3a;transform:scale(.98)}
+  .mobileBar button.feedGood{
+    background:#12351f;border-color:#4ade80;color:#dcfce7;
+    box-shadow:0 0 0 1px rgba(74,222,128,.35),0 0 22px rgba(74,222,128,.22);
+  }
+  .mobileBar button.feedBad{
+    background:#3a141a;border-color:#fb7185;color:#ffe4e6;
+    box-shadow:0 0 0 1px rgba(251,113,133,.35),0 0 22px rgba(251,113,133,.22);
+  }
+  body.mobile .sideBar{display:none !important}
+
+  /* ---------- desktop side buttons ---------- */
+  .sideBar{
+    position:fixed;top:50%;transform:translateY(-50%);z-index:44;
+    display:flex;flex-direction:column;gap:10px;width:126px;
+  }
+  .sideLeft{left:14px}
+  .sideRight{right:14px}
+  .sideBtn{
+    border:1px solid #26262f;background:#0e0e15;color:#ececf4;border-radius:14px;
+    padding:14px 10px;font-size:13px;font-weight:650;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;gap:7px;
+    transition:background .12s,border-color .12s,color .12s,box-shadow .12s,transform .08s;
+    touch-action:manipulation;user-select:none;
+  }
+  .sideBtn:hover{background:#15151f;border-color:#33333f}
+  .sideBtn .key{font-size:10.5px;opacity:.62;font-weight:600}
+  .sideBtn.press{transform:scale(.97);background:#2a2a3a}
+  .sideBtn.feedGood{
+    background:#12351f;border-color:#4ade80;color:#dcfce7;
+    box-shadow:0 0 0 1px rgba(74,222,128,.35),0 0 24px rgba(74,222,128,.22);
+  }
+  .sideBtn.feedBad{
+    background:#3a141a;border-color:#fb7185;color:#ffe4e6;
+    box-shadow:0 0 0 1px rgba(251,113,133,.35),0 0 24px rgba(251,113,133,.22);
+  }
+  @media (max-width: 1000px){
+    .sideBar{display:none !important}
+  }
+  body.mobile #game{padding-bottom:92px}
+  body.mobile .chips{display:none}
+  body.mobile .stageFoot{display:none}
+  body.mobile #setup{padding-bottom:200px}
+  body.mobile .setup-head{flex-direction:column;gap:8px}
+  body.mobile .cards{grid-template-columns:1fr}
+  body.mobile #setupHint{display:none}
+  /* Stack the two actions and let each one span the full bar width. */
+  body.mobile .startbar{
+    flex-direction:column;align-items:stretch;gap:10px;
+    padding:10px 14px calc(14px + env(safe-area-inset-bottom));
+  }
+  body.mobile .startbar .btn{width:100%;justify-content:center}
+
+  /* ---------- overlay ---------- */
+  .overlay{
+    position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;
+    padding:22px;background:rgba(3,3,5,.8);backdrop-filter:blur(10px);
+  }
+  .overlayCard{
+    width:100%;max-width:430px;background:#0b0b11;border:1px solid var(--line2);
+    border-radius:22px;padding:28px;text-align:center;box-shadow:0 40px 120px rgba(0,0,0,.75);
+  }
+  .kicker{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+  .ovTitle{font-size:48px;font-weight:700;letter-spacing:-.03em;line-height:1.05}
+  .ovSub{color:#b9b9c6;font-size:13.5px;margin-top:7px;line-height:1.5}
+  .ovStreams{display:flex;flex-direction:column;gap:6px;margin:18px 0 20px;text-align:left}
+  .ovStream{
+    display:flex;align-items:center;gap:8px;font-size:12.5px;color:#c9c9d4;
+    padding:7px 11px;background:#08080d;border:1px solid var(--line);border-radius:10px;
+  }
+  .ovStream b{margin-left:auto;font-variant-numeric:tabular-nums;color:#fff}
+  .ovHint{margin-top:11px;font-size:10.5px;color:var(--dim)}
+  .countNum{font-size:104px;font-weight:700;line-height:1.05;letter-spacing:-.05em}
+
+  /* ---------- results ---------- */
+  #results{max-width:940px;margin:0 auto;padding:44px 22px 90px}
+  .resHead{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;flex-wrap:wrap}
+  .resMode{color:var(--muted);font-size:13px;margin-top:8px}
+  .resultGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:11px;margin:24px 0}
+  .stat{background:#0b0b10;border:1px solid var(--line);border-radius:14px;padding:15px 16px}
+  .stat .k{font-size:10.5px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted)}
+  .stat .v{font-size:27px;font-weight:700;margin-top:5px;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+  .histGrid{margin:0 0 12px}
+  .histGrid .stat{padding:11px 12px}
+  .histGrid .stat .v{font-size:21px}
+  .tableCard{margin-top:14px}
+  .tableWrap{overflow-x:auto;margin-top:4px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{
+    text-align:left;color:var(--muted);font-weight:550;font-size:10.5px;text-transform:uppercase;
+    letter-spacing:.09em;padding:8px 8px;border-bottom:1px solid var(--line);white-space:nowrap;
+  }
+  td{padding:9px 8px;border-bottom:1px solid rgba(255,255,255,.04);font-variant-numeric:tabular-nums;white-space:nowrap}
+  tr:last-child td{border-bottom:0}
+  .good{color:var(--good)}
+  .bad{color:var(--bad)}
+  .warn{color:var(--warn)}
+  .dim{color:var(--dim)}
+  .up{color:var(--good)}
+  .down{color:var(--bad)}
+  .mutedN{color:var(--muted)}
+  .resBtns{display:flex;gap:10px;flex-wrap:wrap;margin-top:22px}
+
+  /* ---------- modal ---------- */
+  .modal{
+    position:fixed;inset:0;z-index:80;display:flex;align-items:center;justify-content:center;
+    padding:20px;background:rgba(0,0,0,.72);backdrop-filter:blur(8px);
+  }
+  .modalCard{
+    width:100%;max-width:780px;max-height:82dvh;overflow:auto;background:#0b0b11;
+    border:1px solid var(--line2);border-radius:20px;padding:22px;
+    box-shadow:0 40px 120px rgba(0,0,0,.8);
+  }
+  .modalHead{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:14px}
+  .modalHead h2{font-size:11.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--muted);font-weight:650}
+
+  /* ---------- toast ---------- */
+  #toast{
+    position:fixed;left:50%;bottom:104px;transform:translateX(-50%) translateY(14px);
+    background:#17171f;border:1px solid #33333f;color:#f0f0f6;font-size:12.5px;
+    padding:10px 16px;border-radius:11px;z-index:100;opacity:0;pointer-events:none;
+    transition:.25s;max-width:min(90vw,460px);text-align:center;line-height:1.45;
+    box-shadow:0 16px 40px rgba(0,0,0,.5);
+  }
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  @media (max-width: 720px){
+    .gameTop{gap:10px}
+    .nBadge{min-width:52px;height:52px;border-radius:13px}
+    #nVal{font-size:21px}
+    .gameTopRight .timer{font-size:11.5px}
+    .stageWrap{padding:2px 0}
+    #setup{padding-top:var(--sp-3)}
+    .setup-head{grid-template-columns:1fr}
+    .cards{grid-template-columns:1fr}
+    .startbar{gap:12px}
+    .btn.primary{padding:12px 20px;font-size:14px}
+    #setupHint{font-size:11px}
+    #results{padding-top:28px}
+  }
+</style>
+</head>
+<body>
+
+<!-- ============================ SETUP ============================ -->
+<section id="setup" class="screen">
+  <div class="setup-head">
+    <div>
+      <h1>N&#8209;Back</h1>
+      <p class="sub">Working-memory training. Configure your streams, timing and difficulty.</p>
+    </div>
+    <div class="card headCard">
+      <div class="miniGrid">
+        <div><div class="k">Stimulus</div><div class="v" id="headStim">0.5 s</div></div>
+        <div><div class="k">Session</div><div class="v" id="headSession">14:00</div></div>
+      </div>
+      <div class="note" style="margin:0">One stimulus per trial. Respond while it is on screen.</div>
+    </div>
+  </div>
+
+  <div class="cards" id="cards">
+
+    <!-- Streams -->
+    <div class="card">
+      <div class="card-h"><h2>Streams</h2></div>
+      <div class="streams" id="streamPicker">
+        <label class="chk"><input type="checkbox" data-stream="position" checked><span>Position</span></label>
+        <label class="chk"><input type="checkbox" data-stream="color"><span>Color</span></label>
+        <label class="chk"><input type="checkbox" data-stream="shape"><span>Shape</span></label>
+        <label class="chk"><input type="checkbox" data-stream="audio" checked><span>Audio</span></label>
+        <label class="chk"><input type="checkbox" data-stream="space"><span>Spatial audio</span></label>
+      </div>
+      <p class="note">Pick any combination of streams. Each active stream gets its own response key.</p>
+      <p class="note">Spatial audio plays a short tone hard into the left or right ear only. A match is the same ear repeating N steps later &mdash; the tone itself never changes. With Audio on as well, the spoken word itself is panned hard to that ear by a bundled offline voice and no beep is played.</p>
+    </div>
+
+    <!-- Grid -->
+    <div class="card">
+      <div class="card-h"><h2>Grid</h2></div>
+      <div class="seg" data-seg="grid">
+        <button type="button" data-val="2d" class="on">2D grid</button>
+        <button type="button" data-val="3d">3D cube</button>
+      </div>
+      <div class="row" id="grid2dRow">
+        <span class="lbl">Cells (columns &#215; rows)</span>
+        <div class="dims">
+          <input type="number" id="cols2d" value="3" min="2" max="10" inputmode="numeric" aria-label="Columns">
+          <span class="x">&#215;</span>
+          <input type="number" id="rows2d" value="3" min="2" max="10" inputmode="numeric" aria-label="Rows">
+        </div>
+      </div>
+      <div class="row hidden" id="grid3dRow">
+        <span class="lbl">Cells (x &#215; y &#215; z)</span>
+        <div class="dims">
+          <input type="number" id="dimx" value="3" min="2" max="6" inputmode="numeric" aria-label="X size">
+          <span class="x">&#215;</span>
+          <input type="number" id="dimy" value="3" min="2" max="6" inputmode="numeric" aria-label="Y size">
+          <span class="x">&#215;</span>
+          <input type="number" id="dimz" value="3" min="2" max="6" inputmode="numeric" aria-label="Z size">
+        </div>
+      </div>
+      <div class="row hidden" id="rotRow">
+        <label class="chk" style="padding:0"><input type="checkbox" id="rotateOn" checked><span>Rotate cube</span></label>
+      </div>
+      <div class="row hidden" id="rotRandomRow">
+        <label class="chk" style="padding:0"><input type="checkbox" id="rotRandom" checked><span>Random 3D tumbling</span></label>
+      </div>
+      <div class="row hidden" id="rotSpeedRow">
+        <span class="lbl">Rotation speed</span>
+        <input type="range" id="rotSpeed" min="0" max="120" step="5" value="25" aria-label="Rotation speed">
+        <output id="rotSpeedOut">25&#176;/s</output>
+      </div>
+      <p class="note">3D mode draws one big cube out of evenly weighted grid lines; the stimulus fills the cell inside that lattice on all six sides. Random tumbling turns each axis independently &mdash; never a single clockwise spin.</p>
+    </div>
+
+    <!-- Timing -->
+    <div class="card">
+      <div class="card-h"><h2>Trial timing</h2></div>
+      <div class="row">
+        <span class="lbl">Stimulus on screen</span>
+        <input type="range" id="stimMs" min="200" max="10000" step="50" value="500" aria-label="Stimulus duration">
+        <output id="stimMsOut">500 ms</output>
+      </div>
+      <div class="row">
+        <span class="lbl">Inter-stimulus interval</span>
+        <input type="range" id="isiMs" min="0" max="5000" step="50" value="2500" aria-label="Inter-stimulus interval">
+        <output id="isiMsOut">2500 ms</output>
+      </div>
+      <p class="note">Trial length: <b id="trialLen" style="color:#cfcfe0">3.0 s</b> &mdash; stimulus on screen, then a blank gap before the next trial. Responses stay open through the gap.</p>
+    </div>
+
+    <!-- Session -->
+    <div class="card">
+      <div class="card-h"><h2>Session</h2></div>
+      <div class="row">
+        <span class="lbl">Trials per block</span>
+        <input type="number" id="blockTrials" value="35" min="10" max="200" inputmode="numeric">
+      </div>
+      <div class="row">
+        <span class="lbl">Blocks</span>
+        <input type="number" id="blockCount" value="8" min="1" max="60" inputmode="numeric">
+      </div>
+      <div class="row">
+        <span class="lbl">Time limit</span>
+        <div class="dims">
+          <input type="number" id="timeLimit" value="0" min="0" max="120" inputmode="numeric" aria-label="Time limit in minutes">
+          <span class="unit">min</span>
+        </div>
+      </div>
+      <p class="note">0 min = no limit. Estimated session: <b id="sessionEstimate" style="color:#cfcfe0">14:00</b>.</p>
+    </div>
+
+    <!-- Colors -->
+    <div class="card">
+      <div class="card-h"><h2>Colors</h2></div>
+      <label class="chk"><input type="checkbox" id="colStandard" checked><span>Standard colors</span></label>
+      <label class="chk"><input type="checkbox" id="colGen"><span>Generative art</span></label>
+      <label class="chk"><input type="checkbox" id="colCustom"><span>Custom images</span></label>
+      <div id="customImgWrap" class="hidden">
+        <input type="file" id="imgInput" accept="image/*" multiple class="hidden">
+        <button type="button" class="btn ghost sm" id="imgBtn">Upload images</button>
+        <div class="thumbs" id="imgThumbs"></div>
+      </div>
+      <p class="note">Sources can be combined. Generative art paints a unique seeded composition of ribbons, rings, orbs and shards in each colour, so no two tiles look alike. Uploaded images are cached on this device, so they reload instantly next time.</p>
+    </div>
+
+    <!-- Audio -->
+    <div class="card">
+      <div class="card-h"><h2>Audio</h2></div>
+      <label class="chk"><input type="checkbox" id="audLetters" checked><span>Letters</span></label>
+      <label class="chk"><input type="checkbox" id="audNumbers"><span>Numbers</span></label>
+      <label class="chk"><input type="checkbox" id="audSyllables"><span>5-syllable words <span class="unit" id="sylHint">(loading&hellip;)</span></span></label>
+      <label class="chk"><input type="checkbox" id="audCustom"><span>Custom words</span></label>
+      <textarea id="customWords" placeholder="One word per line, e.g.&#10;river&#10;lantern&#10;orbit"></textarea>
+      <div class="row" style="margin-top:6px">
+        <span class="lbl">Voice cache</span>
+        <button type="button" class="btn ghost sm" id="sylBtn">New words</button>
+        <button type="button" class="btn ghost sm" id="voicePrepBtn">Pre-render</button>
+      </div>
+      <p class="note" id="voiceCacheNote">Pre-render once. The phrase cache is stored on this device and reused after reload.</p>
+    </div>
+
+    <!-- Difficulty -->
+    <div class="card">
+      <div class="card-h"><h2>Difficulty</h2></div>
+      <div class="row">
+        <span class="lbl">Match chance</span>
+        <input type="range" id="matchChance" min="5" max="60" step="1" value="28" aria-label="Match chance">
+        <output id="matchChanceOut">28%</output>
+      </div>
+      <div class="row">
+        <span class="lbl">Interference (lure)</span>
+        <input type="range" id="lureChance" min="0" max="45" step="1" value="15" aria-label="Interference chance">
+        <output id="lureChanceOut">15%</output>
+      </div>
+      <p class="note">Lures are recent repeats one or two steps back &mdash; they tempt false alarms without being a true N-back match.</p>
+    </div>
+
+    <!-- Progression -->
+    <div class="card">
+      <div class="card-h"><h2>Progression</h2></div>
+      <label class="chk"><input type="checkbox" id="autoProg" checked><span>Auto-adjust N between blocks</span></label>
+      <div class="row">
+        <span class="lbl">N + 1 above</span>
+        <div class="dims"><input type="number" id="upTh" value="80" min="50" max="100" inputmode="numeric" aria-label="Upper accuracy threshold"><span class="unit">%</span></div>
+      </div>
+      <div class="row">
+        <span class="lbl">N &minus; 1 below</span>
+        <div class="dims"><input type="number" id="downTh" value="50" min="0" max="90" inputmode="numeric" aria-label="Lower accuracy threshold"><span class="unit">%</span></div>
+      </div>
+      <div class="row">
+        <span class="lbl">Start at N</span>
+        <input type="number" id="nStart" value="2" min="1" max="12" inputmode="numeric">
+      </div>
+      <button type="button" class="btn ghost sm" id="histBtn" style="margin-top:10px;width:100%">View progression history</button>
+      <p class="note">Evaluated at the end of every block (35 trials by default) against the accuracy above, which counts missed targets and false alarms — a quiet block scores low. Turn off to keep N fixed.</p>
+    </div>
+
+    <!-- Keys -->
+    <div class="card">
+      <div class="card-h"><h2>Response keys</h2></div>
+      <div class="keys" id="keyList">
+        <div class="keyRow"><span><i class="dot" style="background:#7dd3fc"></i> Position</span><button type="button" class="keyBtn" data-stream="position">A</button></div>
+        <div class="keyRow"><span><i class="dot" style="background:#e879f9"></i> Color</span><button type="button" class="keyBtn" data-stream="color">D</button></div>
+        <div class="keyRow"><span><i class="dot" style="background:#a3e635"></i> Shape</span><button type="button" class="keyBtn" data-stream="shape">S</button></div>
+        <div class="keyRow"><span><i class="dot" style="background:#fbbf24"></i> Audio</span><button type="button" class="keyBtn" data-stream="audio">L</button></div>
+        <div class="keyRow"><span><i class="dot" style="background:#a78bfa"></i> Spatial</span><button type="button" class="keyBtn" data-stream="space">K</button></div>
+      </div>
+      <p class="note">Click a key, then press any key to rebind it. Escape cancels. Each active stream needs a unique key.</p>
+    </div>
+
+    <!-- Feedback -->
+    <div class="card">
+      <div class="card-h"><h2>Feedback</h2></div>
+      <label class="chk"><input type="checkbox" id="fbBeep" checked><span>Error beep on misses &amp; false alarms</span></label>
+      <label class="chk"><input type="checkbox" id="fbColors" checked><span>Red / green response buttons</span></label>
+      <label class="chk"><input type="checkbox" id="fbSide" checked><span>Response buttons on the sides (desktop)</span></label>
+      <p class="note">Buttons flash green only for a correct hit. They flash red for both kinds of error: a false alarm (pressed with no match) and a missed match (matched, but no press). Turn any feedback off here.</p>
+    </div>
+
+    <!-- Interface -->
+    <div class="card">
+      <div class="card-h"><h2>Interface</h2></div>
+      <label class="chk"><input type="checkbox" id="mobileMode"><span>Mobile mode</span></label>
+      <p class="note">Desktop mode shows large response buttons on the sides of the game. Mobile mode moves them to a bar along the bottom.</p>
+      <p class="note" style="margin-top:12px">Esc ends a running session. Space or Enter confirms block summaries.</p>
+    </div>
+
+  </div>
+
+  <div class="startbar">
+    <div id="setupHint">Loading&hellip;</div>
+    <button type="button" class="btn ghost" id="homeProgBtn">Previous progress</button>
+    <button type="button" class="btn primary" id="startBtn">Start session</button>
+  </div>
+</section>
+
+<!-- ============================ GAME ============================ -->
+<section id="game" class="screen hidden">
+  <div class="gameTop">
+    <div class="nBadge"><span class="nLabel">N</span><span id="nVal">2</span></div>
+    <div class="gameTopMid">
+      <div class="chips" id="hudChips"></div>
+      <div class="blocksStat">
+        <span class="k">Blocks passed</span>
+        <span class="v"><b id="blocksPassed">0</b> <small id="blocksTotal">/ 8</small></span>
+      </div>
+    </div>
+    <div class="gameTopRight">
+      <div class="timer" id="timerText">0:00</div>
+      <button type="button" class="iconBtn" id="endBtn">End</button>
+    </div>
+  </div>
+
+  <div class="stageWrap">
+    <div class="stage" id="stage">
+      <div id="board2d" class="board2d"></div>
+      <div id="scene3d" class="scene3d hidden"><canvas id="cv3d" class="cv3d"></canvas></div>
+    </div>
+  </div>
+
+  <div class="stageFoot"><div class="legend" id="legend"></div></div>
+  <div id="overlay" class="overlay hidden"></div>
+</section>
+
+<!-- ============================ RESULTS ============================ -->
+<section id="results" class="screen hidden">
+  <div class="resHead">
+    <div>
+      <h1 style="margin-bottom:0">Session complete</h1>
+      <p class="resMode" id="resMode">&mdash;</p>
+    </div>
+    <button type="button" class="btn ghost sm" id="resHistBtn">Progression history</button>
+  </div>
+
+  <div class="resultGrid">
+    <div class="stat"><div class="k">Final N</div><div class="v" id="resN">2</div></div>
+    <div class="stat"><div class="k">Best N</div><div class="v" id="resBest">2</div></div>
+    <div class="stat"><div class="k">Accuracy</div><div class="v" id="resAcc">&mdash;</div></div>
+    <div class="stat"><div class="k">Hit rate</div><div class="v" id="resHit">&mdash;</div></div>
+    <div class="stat"><div class="k">False alarms</div><div class="v" id="resFA">0</div></div>
+    <div class="stat"><div class="k">Blocks done</div><div class="v" id="resBlocks">0</div></div>
+    <div class="stat"><div class="k">Trials</div><div class="v" id="resTrials">0</div></div>
+    <div class="stat"><div class="k">Time</div><div class="v" id="resTime">&mdash;</div></div>
+  </div>
+  <p class="note" style="margin:-12px 0 18px">Accuracy counts only the trials that need a decision — targets pressed (hits), targets missed and false alarms. Correct rejections are left out on purpose, so staying silent cannot earn a high score.</p>
+
+  <div class="card tableCard">
+    <div class="card-h"><h2>Blocks</h2></div>
+    <div id="blockTable"></div>
+  </div>
+
+  <div class="card tableCard">
+    <div class="card-h"><h2>Per stream</h2></div>
+    <div id="streamTable"></div>
+  </div>
+
+  <div class="resBtns">
+    <button type="button" class="btn primary" id="againBtn">Run again</button>
+    <button type="button" class="btn ghost" id="backBtn">Change settings</button>
+  </div>
+</section>
+
+<!-- ============================ HISTORY MODAL ============================ -->
+<div id="histModal" class="modal hidden">
+  <div class="modalCard">
+    <div class="modalHead">
+      <h2>Progression history</h2>
+      <button type="button" class="iconBtn" id="histClose">Close</button>
+    </div>
+    <div id="histBody"></div>
+  </div>
+</div>
+
+<div id="mobileBar" class="mobileBar hidden"></div>
+<div id="sideLeft" class="sideBar sideLeft hidden"></div>
+<div id="sideRight" class="sideBar sideRight hidden"></div>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* =========================================================
+     Utilities
+  ========================================================= */
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+  const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+  const clampInt = (v, lo, hi, fb) => {
+    const n = Math.round(Number(v));
+    return Number.isFinite(n) ? clamp(n, lo, hi) : fb;
+  };
+  const cap = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
+  const fmtTime = (sec) => {
+    sec = Math.max(0, Math.round(sec));
+    return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0');
+  };
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      let t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+  function accClass(a) {
+    if (a === null || a === undefined) return '';
+    if (a >= 80) return 'good';
+    if (a < 50) return 'bad';
+    return 'warn';
+  }
+  /* Accuracy over the decisions that actually carry signal: every target
+     should be pressed and every non-target left alone. Correct rejections are
+     excluded — matches are rare (28% by default), so counting them would give
+     a passive player ~72% for pressing nothing. */
+  function accFromCounts(hits, misses, fa) {
+    const den = hits + misses + fa;
+    return den ? Math.round((hits / den) * 100) : null;
+  }
+  function hitRate(hits, misses) {
+    const den = hits + misses;
+    return den ? Math.round((hits / den) * 100) : null;
+  }
+  function sumCounts(streams, stats) {
+    const out = { hits: 0, misses: 0, fa: 0, cr: 0 };
+    streams.forEach(s => {
+      const c = stats[s];
+      if (!c) return;
+      out.hits += c.hits; out.misses += c.misses; out.fa += c.fa; out.cr += c.cr;
+    });
+    return out;
+  }
+  let toastTimer = 0;
+  function toast(msg) {
+    const el = $('#toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove('show'), 3800);
+  }
+
+  /* =========================================================
+     Stimulus pools
+  ========================================================= */
+  const META = {
+    position: { label: 'Position', color: '#7dd3fc' },
+    color: { label: 'Color', color: '#e879f9' },
+    shape: { label: 'Shape', color: '#a3e635' },
+    audio: { label: 'Audio', color: '#fbbf24' },
+    space: { label: 'Spatial', color: '#a78bfa' }
+  };
+  const ORDER = ['position', 'color', 'shape', 'audio', 'space'];
+
+  // The spatial stream has no content of its own: the stimulus is which ear the
+  // tone arrives in, so its pool is just the two sides.
+  const SPACE_POOL = [
+    { id: 'space-left', side: -1, label: 'Left' },
+    { id: 'space-right', side: 1, label: 'Right' }
+  ];
+
+  const STANDARD_COLORS = ['#ff453a', '#30d158', '#0a84ff', '#ffd60a', '#ff9f0a', '#bf5af2', '#64d2ff', '#ff2d92'];
+
+  // Free-form silhouettes plus a handful of classic tetrominoes. Every entry
+  // is centred in the 100x100 viewBox and differs from the others by outline
+  // mass, not just by rotation.
+  const STANDARD_SHAPES = [
+    '<circle cx="50" cy="50" r="39"/>',                                    // disc
+    '<path fill-rule="evenodd" d="M7 50a43 43 0 1 0 86 0 43 43 0 1 0-86 0zM26 50a24 24 0 1 0 48 0 24 24 0 1 0-48 0z"/>', // ring
+    '<ellipse cx="50" cy="50" rx="44" ry="27"/>',                        // ellipse
+    '<polygon points="50,9 92,85 8,85"/>',                                   // triangle
+    '<polygon points="50,5 95,50 50,95 5,50"/>',                             // diamond
+    '<polygon points="50,4 61,37 96,37 68,58 79,92 50,71 21,92 32,58 4,37 39,37"/>', // star
+    '<polygon points="50,5 89,27 89,73 50,95 11,73 11,27"/>',                // hexagon
+    '<path d="M67.4 14A40 40 0 1 0 67.4 86A36 36 0 0 1 67.4 14Z"/>',        // crescent
+    '<path d="M50 5c15 22 33 34 33 54a33 33 0 0 1-66 0C17 39 35 27 50 5z"/>', // teardrop
+    '<polygon points="50,3 59,34 86,14 69,41 97,50 69,59 86,86 59,66 50,97 41,66 14,86 31,59 3,50 31,41 14,14 41,34"/>', // burst
+    '<path d="M7 74a43 43 0 0 1 86 0z"/>',                                  // dome
+    '<polygon points="50,7 93,50 68,50 68,93 32,93 32,50 7,50"/>',          // arrow
+    '<rect x="5" y="40" width="80" height="20" rx="4"/>',                // I piece
+    '<rect x="20" y="20" width="60" height="60" rx="6"/>',              // O piece
+    '<polygon points="20,20 80,20 80,40 60,40 60,80 40,80 40,40 20,40"/>',   // T piece
+    '<polygon points="40,30 80,30 80,50 60,50 60,70 20,70 20,50 40,50"/>',   // S piece
+    '<polygon points="30,20 50,20 50,60 70,60 70,80 30,80"/>'                // L piece
+  ];
+
+  const LETTER_SET = ['A', 'B', 'D', 'E', 'G', 'I', 'K', 'M', 'O', 'P', 'R', 'S', 'T', 'U'];
+  const LETTER_SAY = {
+    A: 'ay', B: 'bee', D: 'dee', E: 'ee', G: 'gee', I: 'eye', K: 'kay',
+    M: 'em', O: 'oh', P: 'pee', R: 'ar', S: 'ess', T: 'tee', U: 'you'
+  };
+  const NUMBER_WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine'];
+
+  // Deliberately meaningless five-syllable strings. Real words let meaning or
+  // familiarity carry the sound; nonsense forces the ear to hold the syllable
+  // pattern itself. A handful are drawn once, stored on the device, and reused
+  // so the one-time voice pre-render stays valid across reloads. "New words"
+  // draws a fresh handful.
+  const FIVE_SYLLABLE_WORDS = [
+    'flavicalumo',   // fla-vi-ca-lu-mo
+    'drunevasilo',   // dru-ne-va-si-lo
+    'pelvamorita',   // pel-va-mo-ri-ta
+    'globanetivo',   // glo-ba-ne-ti-vo
+    'septarivolu',   // sep-ta-ri-vo-lu
+    'trimaloneka',   // tri-ma-lo-ne-ka
+    'vazilopane',    // va-zi-lo-pa-ne
+    'norvaliteko'    // nor-va-li-te-ko
+  ];
+  const SYLLABLE_WORD_KEY = 'nback_five_syllable_words_v1';
+  const SYLLABLE_WORD_COUNT = 6;
+  let syllableWords = null;
+
+  function shuffleWords(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+    }
+    return arr;
+  }
+
+  function randomFiveSyllableWords(n) {
+    return shuffleWords(FIVE_SYLLABLE_WORDS.slice()).slice(0, n);
+  }
+
+  function loadSyllableWords() {
+    try {
+      const arr = JSON.parse(localStorage.getItem(SYLLABLE_WORD_KEY) || '[]');
+      if (Array.isArray(arr)) {
+        const valid = arr
+          .filter(w => typeof w === 'string' && FIVE_SYLLABLE_WORDS.indexOf(w) !== -1)
+          .filter((w, i, a) => a.indexOf(w) === i)
+          .slice(0, 12);
+        if (valid.length >= 2) return valid;
+      }
+    } catch (e) { /* no cache */ }
+    return null;
+  }
+
+  function saveSyllableWords() {
+    try {
+      localStorage.setItem(SYLLABLE_WORD_KEY, JSON.stringify(syllableWords || []));
+    } catch (e) { /* storage may be unavailable */ }
+  }
+
+  function currentSyllableWords() {
+    if (!syllableWords || syllableWords.length < 2) {
+      syllableWords = loadSyllableWords() || randomFiveSyllableWords(SYLLABLE_WORD_COUNT);
+      saveSyllableWords();
+    }
+    return syllableWords;
+  }
+
+  function regenerateSyllableWords() {
+    syllableWords = randomFiveSyllableWords(SYLLABLE_WORD_COUNT);
+    saveSyllableWords();
+    updateSyllableHint();
+    updateVoiceCacheNote();
+  }
+
+  function updateSyllableHint() {
+    const el = $('#sylHint');
+    if (!el) return;
+    const words = currentSyllableWords();
+    el.textContent = '(' + words.length + ' stored words)';
+    el.title = words.join(', ');
+  }
+
+  /* Custom spoken words are plain text, so a reload can restore them. */
+  const CUSTOM_WORDS_KEY = 'nback_custom_words_v1';
+
+  function loadCustomWords() {
+    try {
+      const raw = localStorage.getItem(CUSTOM_WORDS_KEY);
+      if (typeof raw === 'string') return raw;
+    } catch (e) { /* no cache */ }
+    return '';
+  }
+
+  function saveCustomWords(text) {
+    try { localStorage.setItem(CUSTOM_WORDS_KEY, text); } catch (e) { /* storage may be unavailable */ }
+  }
+
+  const SHAPE_SVG_CACHE = new Map();
+  const SHAPE_IMAGE_IDS = new Map();
+  let shapeImageSeq = 0;
+
+  function shapeImageSVG(inner, img) {
+    let pid = SHAPE_IMAGE_IDS.get(img);
+    if (!pid) {
+      pid = 'shapeimg' + (++shapeImageSeq);
+      SHAPE_IMAGE_IDS.set(img, pid);
+    }
+    return '<svg viewBox="0 0 100 100" class="shapeSvg" aria-hidden="true">' +
+      '<defs><pattern id="' + pid + '" patternUnits="userSpaceOnUse" width="100" height="100">' +
+      '<image href="' + img + '" x="0" y="0" width="100" height="100" preserveAspectRatio="xMidYMid slice"/>' +
+      '</pattern></defs>' +
+      '<g fill="url(#' + pid + ')" stroke="rgba(0,0,0,.34)" stroke-width="2.5" stroke-linejoin="round">' +
+      inner + '</g></svg>';
+  }
+
+  function shapeSVG(inner, fill, img) {
+    if (img) return shapeImageSVG(inner, img);
+    const key = fill ? fill + '\u0000' + inner : inner;
+    const hit = SHAPE_SVG_CACHE.get(key);
+    if (hit) return hit;
+    const paint = fill
+      ? 'fill="' + fill + '" stroke="rgba(0,0,0,.32)"'
+      : 'fill="rgba(255,255,255,.96)" stroke="rgba(0,0,0,.55)"';
+    const svg = '<svg viewBox="0 0 100 100" class="shapeSvg" aria-hidden="true">' +
+      '<g ' + paint + ' stroke-width="2.5" stroke-linejoin="round">' +
+      inner + '</g></svg>';
+    if (SHAPE_SVG_CACHE.size > 400) SHAPE_SVG_CACHE.clear();
+    SHAPE_SVG_CACHE.set(key, svg);
+    return svg;
+  }
+
+  /* Shapes live as SVG strings. The 3D view needs pixels, so each one is
+     rasterised once into a 256px canvas and cached by its markup. Loading is
+     async; the face is simply drawn without ink until the raster lands. */
+  const SHAPE_RASTER = new Map();
+
+  function shapeRaster(svgMarkup) {
+    let r = SHAPE_RASTER.get(svgMarkup);
+    if (r) return r;
+    r = { canvas: document.createElement('canvas'), ready: false };
+    r.canvas.width = r.canvas.height = 256;
+    const img = new Image();
+    img.onload = function () {
+      const g = r.canvas.getContext('2d');
+      g.clearRect(0, 0, 256, 256);
+      g.drawImage(img, 0, 0, 256, 256);
+      r.ready = true;
+      if (G.stim3d && G.stim3d.raster === r) render3D();
+    };
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(
+      svgMarkup.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" ')
+    );
+    if (SHAPE_RASTER.size > 240) SHAPE_RASTER.clear();
+    SHAPE_RASTER.set(svgMarkup, r);
+    return r;
+  }
+
+  /* Custom images and generative art arrive as data URLs. drawImage needs a
+     decoded element, so each source is decoded once and cached. */
+  const IMG_ELEM_CACHE = new Map();
+
+  function imageFor(src) {
+    let r = IMG_ELEM_CACHE.get(src);
+    if (r) return r;
+    r = { img: new Image(), ready: false };
+    r.img.onload = function () {
+      r.ready = true;
+      if (G.stim3d && G.stim3d.imgEl === r) render3D();
+    };
+    r.img.src = src;
+    if (IMG_ELEM_CACHE.size > 60) IMG_ELEM_CACHE.clear();
+    IMG_ELEM_CACHE.set(src, r);
+    return r;
+  }
+
+  /* Generative art: every tile is a seeded composition of flowing ribbons,
+     concentric rings, soft orbs and angular shards, painted with gradients
+     of one dominant hue. The hue is the thing the colour stream asks you to
+     match; the composition makes each tile a unique piece of art rather
+     than a flat shade. */
+  function generativeArtPool(n) {
+    const out = [];
+    const seedBase = Math.floor(Math.random() * 1e9);
+    for (let i = 0; i < n; i++) out.push(generativeArt(i, seedBase));
+    return out;
+  }
+
+  function generativeArt(i, seedBase) {
+    const rng = mulberry32((seedBase + i * 7919) >>> 0);
+    const hue = Math.round((i * 47 + (seedBase % 360)) % 360);
+    const accent = (hue + 130 + Math.round(rng() * 90)) % 360;
+    const sat = 62 + Math.round(rng() * 20);
+    const size = 256;
+    const c = document.createElement('canvas');
+    c.width = c.height = size;
+    const g = c.getContext('2d');
+    const hsla = (h, s, l, a) =>
+      'hsla(' + (((h % 360) + 360) % 360) + ', ' + s + '%, ' + l + '%, ' + a + ')';
+
+    // Deep, saturated ground so the composition has something to sit on.
+    const ground = g.createLinearGradient(0, 0, size, size);
+    ground.addColorStop(0, hsla(hue, sat, 14 + rng() * 8, 1));
+    ground.addColorStop(0.55, hsla(hue + 18, sat, 9 + rng() * 7, 1));
+    ground.addColorStop(1, hsla(accent, sat - 8, 12 + rng() * 8, 1));
+    g.fillStyle = ground;
+    g.fillRect(0, 0, size, size);
+
+    // Soft orbs of light.
+    const orbs = 2 + Math.floor(rng() * 3);
+    for (let o = 0; o < orbs; o++) {
+      const ox = size * (0.12 + rng() * 0.76);
+      const oy = size * (0.12 + rng() * 0.76);
+      const orad = size * (0.18 + rng() * 0.34);
+      const oh = o % 2 ? accent : hue;
+      const og = g.createRadialGradient(ox, oy, 0, ox, oy, orad);
+      og.addColorStop(0, hsla(oh, sat + 10, 62 + rng() * 16, 0.55));
+      og.addColorStop(0.55, hsla(oh, sat, 44, 0.22));
+      og.addColorStop(1, hsla(oh, sat, 30, 0));
+      g.fillStyle = og;
+      g.fillRect(0, 0, size, size);
+    }
+
+    // Flowing ribbons drawn as wide bezier strokes with gradient paint.
+    const ribbons = 3 + Math.floor(rng() * 4);
+    for (let r = 0; r < ribbons; r++) {
+      const rh = r % 2 ? accent : hue + Math.round((rng() - 0.5) * 50);
+      const rg = g.createLinearGradient(0, 0, size, size);
+      rg.addColorStop(0, hsla(rh, sat + 6, 66 + rng() * 16, 0.16 + rng() * 0.20));
+      rg.addColorStop(0.5, hsla(rh, sat + 12, 56 + rng() * 14, 0.30 + rng() * 0.26));
+      rg.addColorStop(1, hsla(rh + 40, sat, 40 + rng() * 18, 0.10));
+      g.strokeStyle = rg;
+      g.lineWidth = 2 + rng() * 15;
+      g.lineCap = 'round';
+      g.beginPath();
+      g.moveTo(-size * 0.15, rng() * size);
+      g.bezierCurveTo(
+        size * (0.15 + rng() * 0.2), rng() * size,
+        size * (0.65 + rng() * 0.2), rng() * size,
+        size * 1.15, rng() * size
+      );
+      g.stroke();
+    }
+
+    // Concentric rings or arcs.
+    if (rng() < 0.78) {
+      const cx = size * (0.3 + rng() * 0.4);
+      const cy = size * (0.3 + rng() * 0.4);
+      const rings = 3 + Math.floor(rng() * 4);
+      const start = rng() * Math.PI * 2;
+      for (let k = 0; k < rings; k++) {
+        const rr = size * (0.08 + k * (0.055 + rng() * 0.03));
+        g.beginPath();
+        g.arc(cx, cy, rr, start, start + Math.PI * (0.9 + rng() * 1.4));
+        g.strokeStyle = hsla(k % 2 ? hue : accent, sat + 8, 72 - k * 4, Math.max(0.12, 0.48 - k * 0.05));
+        g.lineWidth = 1.5 + rng() * 3;
+        g.stroke();
+      }
+    }
+
+    // Angular shards.
+    const shards = 2 + Math.floor(rng() * 3);
+    for (let s = 0; s < shards; s++) {
+      const sx = rng() * size;
+      const sy = rng() * size;
+      const sr = size * (0.1 + rng() * 0.24);
+      const sides = 3 + Math.floor(rng() * 3);
+      const rot = rng() * Math.PI * 2;
+      g.beginPath();
+      for (let p = 0; p < sides; p++) {
+        const a = rot + (p / sides) * Math.PI * 2;
+        const px = sx + Math.cos(a) * sr * (0.6 + rng() * 0.6);
+        const py = sy + Math.sin(a) * sr * (0.6 + rng() * 0.6);
+        if (p === 0) g.moveTo(px, py); else g.lineTo(px, py);
+      }
+      g.closePath();
+      const sg = g.createLinearGradient(sx - sr, sy - sr, sx + sr, sy + sr);
+      sg.addColorStop(0, hsla(accent, sat + 10, 64, 0.20 + rng() * 0.22));
+      sg.addColorStop(1, hsla(hue, sat, 38, 0.06));
+      g.fillStyle = sg;
+      g.fill();
+      g.strokeStyle = hsla(accent, sat + 10, 78, 0.26);
+      g.lineWidth = 1;
+      g.stroke();
+    }
+
+    // Fine grain + a vignette so it reads as a printed piece.
+    const pixels = g.getImageData(0, 0, size, size);
+    const d = pixels.data;
+    for (let p = 0; p < d.length; p += 4) {
+      const n = (rng() - 0.5) * 14;
+      d[p] = Math.max(0, Math.min(255, d[p] + n));
+      d[p + 1] = Math.max(0, Math.min(255, d[p + 1] + n));
+      d[p + 2] = Math.max(0, Math.min(255, d[p + 2] + n));
+    }
+    g.putImageData(pixels, 0, 0);
+
+    const vig = g.createRadialGradient(size / 2, size / 2, size * 0.3, size / 2, size / 2, size * 0.72);
+    vig.addColorStop(0, 'rgba(0,0,0,0)');
+    vig.addColorStop(1, 'rgba(0,0,0,.38)');
+    g.fillStyle = vig;
+    g.fillRect(0, 0, size, size);
+
+    return {
+      id: 'g' + i,
+      color: 'hsl(' + hue + ' ' + sat + '% ' + (50 + (i % 3) * 4) + '%)',
+      img: c.toDataURL('image/png')
+    };
+  }
+
+  function parseWords(text) {
+    return String(text || '')
+      .split(/[\n,;]+/)
+      .map(w => w.trim())
+      .filter(Boolean)
+      .slice(0, 40);
+  }
+
+  function buildAudioPool(sel, words) {
+    const out = [];
+    const seen = new Set();
+    const add = (text, label) => {
+      const t = String(text || '').trim();
+      const key = t.toLowerCase();
+      if (!key || seen.has(key)) return;
+      seen.add(key);
+      out.push({ id: 'au-' + key, label: label || t, text: t });
+    };
+    // Spoken text may differ from the displayed label (letters are spoken
+    // phonetically so synthesis never says "A" as the article).
+    if (sel.letters) LETTER_SET.forEach(l => add(LETTER_SAY[l] || l, l));
+    if (sel.numbers) NUMBER_WORDS.forEach(w => add(w, w));
+    if (sel.syllables) currentSyllableWords().forEach(w => add(w, w));
+    if (sel.custom) parseWords(words).forEach(w => add(w, w));
+    return out;
+  }
+
+  /* =========================================================
+     Speech synthesis + voice cache
+     Phrases are synthesised once, silently, before a session and the
+     prepared utterances are reused for every trial. Browsers do not let
+     a page record speechSynthesis output to a file, so the cache keeps
+     the warmed utterance objects in memory and stores the phrase
+     manifest in localStorage so the next page load can re-warm quickly.
+  ========================================================= */
+  const VOICE_UTTERANCES = new Map();
+  const VOICE_WARMED = new Set();
+  const VOICE_MANIFEST_PHRASES = new Set();
+  const VOICE_RATE = 0.92;
+  const VOICE_MANIFEST_KEY = 'nback_voice_manifest_v1';
+  const VOICE_NAME_KEY = 'nback_voice_name_v1';
+  let voice = null;
+  let voiceSpeakTimer = 0;
+
+  function voiceKey() {
+    return (voice ? voice.name + '|' + voice.lang : 'default') + '@' + VOICE_RATE;
+  }
+
+  function makeUtterance(text) {
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = VOICE_RATE;
+    u.pitch = 1;
+    u.volume = 1;
+    if (voice) u.voice = voice;
+    return u;
+  }
+
+  function cachedUtterance(text) {
+    const key = voiceKey() + '|' + text;
+    let u = VOICE_UTTERANCES.get(key);
+    if (!u) {
+      u = makeUtterance(text);
+      if (VOICE_UTTERANCES.size > 400) VOICE_UTTERANCES.clear();
+      VOICE_UTTERANCES.set(key, u);
+    }
+    return u;
+  }
+
+  function readVoiceManifest() {
+    try {
+      const obj = JSON.parse(localStorage.getItem(VOICE_MANIFEST_KEY) || '{}');
+      return {
+        voice: typeof obj.voice === 'string' ? obj.voice : '',
+        phrases: Array.isArray(obj.phrases)
+          ? obj.phrases.filter(x => typeof x === 'string').slice(0, 400)
+          : []
+      };
+    } catch (e) {
+      return { voice: '', phrases: [] };
+    }
+  }
+
+  function saveVoiceManifest() {
+    if (!VOICE_WARMED.size && !VOICE_MANIFEST_PHRASES.size) return;
+    try {
+      const all = new Set();
+      VOICE_MANIFEST_PHRASES.forEach(p => all.add(p));
+      VOICE_WARMED.forEach(p => all.add(p));
+      localStorage.setItem(VOICE_MANIFEST_KEY, JSON.stringify({
+        voice: voice ? voice.name : '',
+        rate: VOICE_RATE,
+        ts: Date.now(),
+        phrases: Array.from(all).slice(0, 400)
+      }));
+    } catch (e) { /* storage may be full */ }
+  }
+
+  function loadVoiceManifestPhrases() {
+    readVoiceManifest().phrases.forEach(p => VOICE_MANIFEST_PHRASES.add(p));
+  }
+
+  function pickVoice() {
+    if (!('speechSynthesis' in window)) return;
+    try {
+      const vs = speechSynthesis.getVoices() || [];
+      if (!vs.length) return;
+      let saved = '';
+      try { saved = localStorage.getItem(VOICE_NAME_KEY) || ''; } catch (e) { /* noop */ }
+      const en = vs.filter(v => /^en(-|_|$)/i.test(v.lang));
+      // Local voices start instantly; network voices add a noticeable delay
+      // and sometimes never return audio.
+      const local = en.filter(v => v.localService);
+      const next =
+        (saved && vs.find(v => v.name === saved)) ||
+        local.find(v => /natural|samantha|aria|jenny|guy|zira/i.test(v.name)) ||
+        local[0] ||
+        en.find(v => /natural|google/i.test(v.name)) ||
+        en[0] || vs[0] || null;
+      if (next !== voice) {
+        voice = next;
+        VOICE_UTTERANCES.clear();
+        VOICE_WARMED.clear();
+        if (voice) {
+          try { localStorage.setItem(VOICE_NAME_KEY, voice.name); } catch (e) { /* noop */ }
+        }
+        updateVoiceCacheNote();
+      }
+    } catch (e) { /* noop */ }
+  }
+  if ('speechSynthesis' in window) {
+    pickVoice();
+    try { speechSynthesis.onvoiceschanged = pickVoice; } catch (e) { /* noop */ }
+  }
+
+  function primeSpeech() {
+    if (!('speechSynthesis' in window)) return;
+    try {
+      const u = new SpeechSynthesisUtterance(' ');
+      u.volume = 0;
+      if (voice) u.voice = voice;
+      speechSynthesis.speak(u);
+    } catch (e) { /* noop */ }
+  }
+
+  function speak(text) {
+    if (!('speechSynthesis' in window) || !text) return;
+    try {
+      speechSynthesis.cancel();
+      if (speechSynthesis.paused) speechSynthesis.resume();
+    } catch (e) { /* noop */ }
+    clearTimeout(voiceSpeakTimer);
+    const u = cachedUtterance(text);
+    // Chrome drops utterances queued in the same tick as cancel(), so the
+    // start is deferred by a few milliseconds. This is why audio used to
+    // go missing at random.
+    voiceSpeakTimer = setTimeout(() => {
+      try {
+        if (speechSynthesis.paused) speechSynthesis.resume();
+        speechSynthesis.speak(u);
+      } catch (e) { /* noop */ }
+    }, 30);
+  }
+
+  function synthSilentUtterance(u) {
+    return new Promise(resolve => {
+      if (!('speechSynthesis' in window)) return resolve(false);
+      let done = false;
+      u.volume = 0;
+      const finish = ok => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        u.volume = 1;
+        resolve(ok);
+      };
+      const timer = setTimeout(() => {
+        try { speechSynthesis.cancel(); } catch (e) { /* noop */ }
+        finish(true);
+      }, 3000);
+      u.onend = () => finish(true);
+      u.onerror = () => finish(false);
+      try { speechSynthesis.speak(u); } catch (e) { finish(false); }
+    });
+  }
+
+  function voicePoolCount(pool) {
+    const key = voiceKey();
+    let n = 0;
+    pool.forEach(item => { if (VOICE_UTTERANCES.has(key + '|' + item.text)) n++; });
+    return n;
+  }
+
+  async function warmVoiceCache(pool, onProgress, cancelled) {
+    if (!('speechSynthesis' in window)) return 0;
+    try {
+      if (!speechSynthesis.getVoices().length) return 0;
+    } catch (e) { return 0; }
+    try { speechSynthesis.cancel(); } catch (e) { /* noop */ }
+    const deadline = performance.now() + 25000;
+    let done = 0;
+    for (let i = 0; i < pool.length; i++) {
+      if (cancelled && cancelled()) break;
+      if (performance.now() > deadline) break;
+      const text = pool[i].text;
+      const key = voiceKey() + '|' + text;
+      if (!VOICE_UTTERANCES.has(key)) {
+        const u = makeUtterance(text);
+        await synthSilentUtterance(u);
+        VOICE_UTTERANCES.set(key, u);
+      }
+      VOICE_WARMED.add(text);
+      VOICE_MANIFEST_PHRASES.add(text);
+      done++;
+      if (onProgress) onProgress(done, pool.length, text);
+    }
+    saveVoiceManifest();
+    return done;
+  }
+
+  function currentAudioSel() {
+    return {
+      letters: $('#audLetters').checked,
+      numbers: $('#audNumbers').checked,
+      syllables: $('#audSyllables').checked,
+      custom: $('#audCustom').checked
+    };
+  }
+
+  function updateVoiceCacheNote(pool) {
+    const note = $('#voiceCacheNote');
+    if (!note) return;
+    if (!('speechSynthesis' in window)) {
+      note.textContent = 'Speech synthesis is not available in this browser.';
+      return;
+    }
+    const p = pool || buildAudioPool(currentAudioSel(), parseWords($('#customWords').value));
+    if (!p.length) {
+      note.textContent = 'Enable an audio source to cache phrases.';
+      return;
+    }
+    const n = voicePoolCount(p);
+    const stored = p.filter(item => VOICE_MANIFEST_PHRASES.has(item.text)).length;
+    if (n >= p.length) {
+      note.textContent = 'Ready — ' + p.length + ' phrase' + (p.length === 1 ? '' : 's') + ' cached' +
+        (voice ? ' with ' + voice.name : '') + '.';
+    } else if (stored) {
+      note.textContent = stored + ' of ' + p.length + ' phrases are stored on this device and re-warm on first use.';
+    } else {
+      note.textContent = 'Cached ' + n + ' of ' + p.length + ' phrases. Pre-render once and they are reused after reload.';
+    }
+  }
+
+  function autoWarmVoice() {
+    if (G.running || !('speechSynthesis' in window)) return;
+    let pool;
+    try {
+      pool = buildAudioPool(currentAudioSel(), parseWords($('#customWords').value));
+    } catch (e) { return; }
+    if (!pool.length) return;
+    if (voicePoolCount(pool) >= pool.length) {
+      updateVoiceCacheNote(pool);
+      return;
+    }
+    warmVoiceCache(pool, null, () => G.running).then(() => updateVoiceCacheNote(pool));
+  }
+
+  /* =========================================================
+     App state
+  ========================================================= */
+  const U = {
+    grid: '2d',
+    binding: null,
+    customImages: [],
+    keys: { position: 'a', color: 'd', shape: 's', audio: 'l', space: 'k' }
+  };
+
+  /* Everything on the setup screen is remembered on this device. Values are
+     read straight from the controls so new inputs are picked up automatically. */
+  const SETTINGS_KEY = 'nback_settings_v1';
+  const SETTINGS_IDS = [
+    'cols2d', 'rows2d', 'dimx', 'dimy', 'dimz', 'rotateOn', 'rotRandom', 'rotSpeed',
+    'stimMs', 'isiMs', 'blockTrials', 'blockCount', 'timeLimit',
+    'colStandard', 'colGen', 'colCustom',
+    'audLetters', 'audNumbers', 'audSyllables', 'audCustom',
+    'matchChance', 'lureChance', 'autoProg', 'upTh', 'downTh', 'nStart',
+    'fbBeep', 'fbColors', 'fbSide', 'mobileMode'
+  ];
+
+  function collectSettings() {
+    const o = {
+      streams: currentStreams(),
+      grid: U.grid,
+      keys: Object.assign({}, U.keys)
+    };
+    SETTINGS_IDS.forEach(id => {
+      const el = $('#' + id);
+      if (el) o[id] = el.type === 'checkbox' ? el.checked : el.value;
+    });
+    return o;
+  }
+
+  function saveSettings() {
+    try {
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(collectSettings()));
+    } catch (e) { /* storage may be unavailable or full */ }
+  }
+
+  function loadSettings() {
+    try {
+      const o = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null');
+      return o && typeof o === 'object' ? o : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function applySettings(o) {
+    if (!o) return;
+
+    if (Array.isArray(o.streams)) {
+      const want = o.streams;
+      $$('#streamPicker input').forEach(b => { b.checked = want.indexOf(b.dataset.stream) !== -1; });
+    }
+
+    if (o.grid === '2d' || o.grid === '3d') {
+      U.grid = o.grid;
+      $$('.seg[data-seg="grid"] button').forEach(b => b.classList.toggle('on', b.dataset.val === U.grid));
+    }
+
+    if (o.keys && typeof o.keys === 'object') {
+      Object.keys(U.keys).forEach(s => {
+        if (typeof o.keys[s] === 'string' && o.keys[s]) U.keys[s] = o.keys[s];
+      });
+    }
+
+    SETTINGS_IDS.forEach(id => {
+      const el = $('#' + id);
+      if (!el || !(id in o)) return;
+      if (el.type === 'checkbox') {
+        el.checked = !!o[id];
+      } else if (el.type === 'number' || el.type === 'range') {
+        const v = Number(o[id]);
+        if (Number.isFinite(v)) {
+          const min = el.min !== '' ? Number(el.min) : -Infinity;
+          const max = el.max !== '' ? Number(el.max) : Infinity;
+          el.value = String(Math.min(max, Math.max(min, v)));
+        } else {
+          el.value = el.defaultValue;
+        }
+      } else {
+        el.value = o[id];
+      }
+    });
+
+    document.body.classList.toggle('mobile', $('#mobileMode').checked);
+
+    // Let the existing listeners refresh the derived readouts (ms labels, trial
+    // length, session estimate) from the restored values.
+    SETTINGS_IDS.forEach(id => {
+      const el = $('#' + id);
+      if (el && el.type !== 'checkbox') el.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  }
+
+  const G = {
+    running: false,
+    token: 0,
+    cfg: null,
+    n: 2,
+    pools: null,
+    seq: null,
+    match: null,
+    blockIndex: 0,
+    trialIndex: 0,
+    presses: {},
+    respondOpen: false,
+    blocks: [],
+    totals: null,
+    blockStats: null,
+    rotAngle: 0,
+    d3: null,
+    stim3d: null,
+    raf: 0,
+    timerId: 0,
+    sessionStart: 0,
+    sessionId: 0,
+    sessionSecs: 0,
+    pendingResolve: null,
+    overlayAction: null,
+    board: { center: 0 }
+  };
+
+  function keyLabel(k) {
+    if (!k) return '—';
+    if (k === ' ') return 'Space';
+    if (k.length === 1) return k.toUpperCase();
+    return cap(k);
+  }
+
+  /* =========================================================
+     Setup UI wiring
+  ========================================================= */
+  function currentStreams() {
+    return $$('#streamPicker input:checked').map(b => b.dataset.stream);
+  }
+
+  function syncStreams() {
+    const boxes = $$('#streamPicker input');
+    if (!boxes.some(b => b.checked)) {
+      const first = boxes.find(b => b.dataset.stream === 'position') || boxes[0];
+      if (first) first.checked = true;
+    }
+    updateSetupHint();
+  }
+
+  function syncGrid() {
+    const is3d = U.grid === '3d';
+    $('#grid2dRow').classList.toggle('hidden', is3d);
+    $('#grid3dRow').classList.toggle('hidden', !is3d);
+    $('#rotRow').classList.toggle('hidden', !is3d);
+    syncRotSpeedRow();
+    updateSetupHint();
+  }
+
+  function syncRotSpeedRow() {
+    const show = U.grid === '3d' && $('#rotateOn').checked;
+    $('#rotSpeedRow').classList.toggle('hidden', !show);
+    $('#rotRandomRow').classList.toggle('hidden', !show);
+  }
+
+  function renderKeys() {
+    $$('.keyBtn').forEach(btn => {
+      const s = btn.dataset.stream;
+      btn.textContent = U.binding === s ? 'Press a key…' : keyLabel(U.keys[s]);
+      btn.classList.toggle('capturing', U.binding === s);
+    });
+  }
+
+  function renderThumbs() {
+    const wrap = $('#imgThumbs');
+    wrap.innerHTML = U.customImages.map((img, i) =>
+      '<div class="thumb"><img src="' + img.thumb + '" alt=""><button type="button" data-rm="' + i + '" title="Remove image">×</button></div>'
+    ).join('');
+  }
+
+  function trialMs() {
+    const stim = Number($('#stimMs').value) || 0;
+    const isi = Number($('#isiMs').value) || 0;
+    return stim + isi;
+  }
+
+  function updateTrialLen() {
+    const s = Number($('#stimMs').value) || 0;
+    const total = trialMs();
+    const txt = (total / 1000).toFixed(1) + ' s';
+    $('#trialLen').textContent = txt;
+    const head = $('#headStim');
+    if (head) head.textContent = (s / 1000).toFixed(1) + ' s';
+    updateSessionEstimate();
+  }
+
+  function updateSessionEstimate() {
+    const bt = clampInt($('#blockTrials').value, 10, 200, 35);
+    let bc = clampInt($('#blockCount').value, 1, 60, 8);
+    const tl = Math.max(0, Number($('#timeLimit').value) || 0);
+    let seconds = (bt * bc * trialMs()) / 1000;
+    if (tl) seconds = Math.min(seconds, tl * 60);
+    const est = fmtTime(seconds);
+    $('#sessionEstimate').textContent = est;
+    const head = $('#headSession');
+    if (head) head.textContent = est;
+    updateSetupHint();
+  }
+
+  function updateSetupHint() {
+    try {
+      const streams = currentStreams().map(s => META[s] ? META[s].label : s);
+      const gridTxt = U.grid === '3d'
+        ? clampInt($('#dimx').value, 2, 6, 3) + '×' + clampInt($('#dimy').value, 2, 6, 3) + '×' + clampInt($('#dimz').value, 2, 6, 3) + ' cube'
+        : clampInt($('#cols2d').value, 2, 10, 3) + '×' + clampInt($('#rows2d').value, 2, 10, 3) + ' grid';
+      const n = clampInt($('#nStart').value, 1, 12, 2);
+      const bt = clampInt($('#blockTrials').value, 10, 200, 35);
+      const bc = clampInt($('#blockCount').value, 1, 60, 8);
+      const tl = Math.max(0, Number($('#timeLimit').value) || 0);
+      const total = tl ? ('limit ' + tl + ' min') : (bt * bc + ' trials');
+      $('#setupHint').textContent = (streams.join(' + ') || 'no streams') + ' · ' + gridTxt + ' · N=' + n + ' · ' + total;
+    } catch (e) { /* noop */ }
+  }
+
+  function fileToImage(file) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const max = 512;
+          const scale = Math.min(1, max / Math.max(img.width, img.height));
+          const c = document.createElement('canvas');
+          c.width = Math.max(1, Math.round(img.width * scale));
+          c.height = Math.max(1, Math.round(img.height * scale));
+          c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+          URL.revokeObjectURL(url);
+          resolve({
+            img: c.toDataURL('image/jpeg', 0.86),
+            thumb: c.toDataURL('image/jpeg', 0.45)
+          });
+        } catch (e) { reject(e); }
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('decode failed')); };
+      img.src = url;
+    });
+  }
+
+  /* Custom images are decoded once, then kept in localStorage so a reload
+     never has to re-read or re-encode the files. */
+  const IMAGE_CACHE_KEY = 'nback_images_v1';
+
+  function loadImageCache() {
+    try {
+      const arr = JSON.parse(localStorage.getItem(IMAGE_CACHE_KEY) || '[]');
+      if (Array.isArray(arr)) {
+        U.customImages = arr
+          .filter(x => x && typeof x.img === 'string')
+          .slice(0, 12)
+          .map(x => ({ img: x.img, thumb: x.thumb || x.img }));
+      }
+    } catch (e) { /* no cache */ }
+  }
+
+  function saveImageCache() {
+    try {
+      localStorage.setItem(IMAGE_CACHE_KEY, JSON.stringify(U.customImages));
+    } catch (e) {
+      toast('Images stay in memory this session — browser storage is full.');
+    }
+  }
+
+  /* =========================================================
+     Read + validate configuration
+  ========================================================= */
+  function readCfg() {
+    let streams = currentStreams();
+    streams = ORDER.filter(s => streams.includes(s));
+    if (!streams.length) throw new Error('Select at least one stimulus stream.');
+
+    const cols = clampInt($('#cols2d').value, 2, 10, 3);
+    const rows = clampInt($('#rows2d').value, 2, 10, 3);
+    const dx = clampInt($('#dimx').value, 2, 6, 3);
+    const dy = clampInt($('#dimy').value, 2, 6, 3);
+    const dz = clampInt($('#dimz').value, 2, 6, 3);
+
+    const stimMs = clampInt($('#stimMs').value, 200, 10000, 500);
+    const isiMs = clampInt($('#isiMs').value, 0, 5000, 2500);
+    const blockTrials = clampInt($('#blockTrials').value, 10, 200, 35);
+    const blockCount = clampInt($('#blockCount').value, 1, 60, 8);
+    const timeLimit = clamp(Number($('#timeLimit').value) || 0, 0, 120);
+    const nStart = clampInt($('#nStart').value, 1, 12, 2);
+    if (blockTrials <= nStart + 1) throw new Error('Trials per block must be at least N + 2.');
+
+    const matchChance = clampInt($('#matchChance').value, 5, 60, 28) / 100;
+    const lureChance = clampInt($('#lureChance').value, 0, 45, 15) / 100;
+    if (matchChance + lureChance > 0.9) throw new Error('Match + interference chance is too high. Lower one of them.');
+
+    const autoProg = $('#autoProg').checked;
+    const upTh = clampInt($('#upTh').value, 50, 100, 80);
+    const downTh = clampInt($('#downTh').value, 0, 90, 50);
+    if (autoProg && upTh <= downTh) throw new Error('The upper threshold must be above the lower threshold.');
+
+    const colorSources = {
+      standard: $('#colStandard').checked,
+      gen: $('#colGen').checked,
+      custom: $('#colCustom').checked
+    };
+    if (streams.includes('color')) {
+      const count = (colorSources.standard ? STANDARD_COLORS.length : 0) +
+                    (colorSources.gen ? 8 : 0) +
+                    (colorSources.custom ? U.customImages.length : 0);
+      if (!count) throw new Error('Choose a color source for the color stream.');
+      if (count < 2) throw new Error('The color stream needs at least two distinct colors or images.');
+    }
+
+    const audioSel = {
+      letters: $('#audLetters').checked,
+      numbers: $('#audNumbers').checked,
+      syllables: $('#audSyllables').checked,
+      custom: $('#audCustom').checked
+    };
+    const customWords = parseWords($('#customWords').value);
+    if (streams.includes('audio')) {
+      const pool = buildAudioPool(audioSel, customWords);
+      if (pool.length < 2) {
+        throw new Error('The audio stream needs at least two distinct sounds. Enable a source or add custom words.');
+      }
+    }
+
+    const keys = Object.assign({}, U.keys);
+    const activeKeys = streams.map(s => keys[s]);
+    if (new Set(activeKeys).size !== activeKeys.length) {
+      throw new Error('Give each active stream a different key.');
+    }
+
+    return {
+      streams: streams,
+      grid: U.grid,
+      cols: cols, rows: rows, dx: dx, dy: dy, dz: dz,
+      rotate: $('#rotateOn').checked,
+      randomRot: $('#rotRandom').checked,
+      rotSpeed: clampInt($('#rotSpeed').value, 0, 120, 25),
+      stimMs: stimMs,
+      isiMs: isiMs,
+      blockTrials: blockTrials,
+      blockCount: blockCount,
+      timeLimit: timeLimit,
+      n: nStart,
+      matchChance: matchChance,
+      lureChance: lureChance,
+      autoProg: autoProg,
+      upTh: upTh,
+      downTh: downTh,
+      colorSources: colorSources,
+      audioSel: audioSel,
+      customWords: customWords,
+      keys: keys,
+      mobile: $('#mobileMode').checked,
+      colCustom: colorSources.custom,
+      beep: $('#fbBeep').checked,
+      fbColors: $('#fbColors').checked,
+      sideButtons: $('#fbSide').checked
+    };
+  }
+
+  /* =========================================================
+     Pools for a session
+  ========================================================= */
+  function buildPools(cfg) {
+    const pools = {};
+    const total = cfg.grid === '3d' ? cfg.dx * cfg.dy * cfg.dz : cfg.cols * cfg.rows;
+    pools.position = [];
+    for (let i = 0; i < total; i++) pools.position.push({ id: i, idx: i });
+
+    if (cfg.streams.includes('color')) {
+      const list = [];
+      if (cfg.colorSources.standard) {
+        STANDARD_COLORS.forEach((col, i) => list.push({ id: 'c' + i, color: col, img: null }));
+      }
+      if (cfg.colorSources.gen) {
+        generativeArtPool(8).forEach(item => list.push(item));
+      }
+      if (cfg.colorSources.custom) {
+        U.customImages.forEach((img, i) => list.push({ id: 'img' + i, color: '#ffffff', img: img.img }));
+      }
+      if (list.length < 2) throw new Error('The color stream needs at least two distinct colors or images.');
+      pools.color = list;
+    }
+
+    if (cfg.streams.includes('shape')) {
+      pools.shape = STANDARD_SHAPES.map((inner, i) => ({ id: 's' + i, inner: inner }));
+      if (pools.shape.length < 2) throw new Error('Not enough shapes available.');
+    }
+
+    if (cfg.streams.includes('audio')) {
+      pools.audio = buildAudioPool(cfg.audioSel, cfg.customWords);
+      if (pools.audio.length < 2) throw new Error('The audio stream needs at least two distinct sounds.');
+    }
+
+    if (cfg.streams.includes('space')) {
+      pools.space = SPACE_POOL.map(s => ({ id: s.id, side: s.side, label: s.label }));
+    }
+    return pools;
+  }
+
+  /* =========================================================
+     Sequence generation
+  ========================================================= */
+  function pickNonMatch(pool, target) {
+    if (pool.length < 2) return target;
+    let it, guard = 0;
+    do {
+      it = pool[Math.floor(Math.random() * pool.length)];
+    } while (it.id === target.id && guard++ < 300);
+    return it;
+  }
+
+  function buildSeq(pool, trials, n, matchChance, lureChance) {
+    const seq = new Array(trials);
+    const rand = () => pool[Math.floor(Math.random() * pool.length)];
+    for (let i = 0; i < trials; i++) {
+      if (i < n) { seq[i] = rand(); continue; }
+      const target = seq[i - n];
+      const r = Math.random();
+      if (r < matchChance) {
+        seq[i] = target;
+      } else if (r < matchChance + lureChance) {
+        const cands = [];
+        const start = Math.max(0, i - n - 4);
+        for (let j = start; j < i; j++) {
+          if (j === i - n) continue;
+          const it = seq[j];
+          if (it.id === target.id) continue;
+          if (!cands.some(c => c.id === it.id)) cands.push(it);
+        }
+        seq[i] = cands.length ? cands[Math.floor(Math.random() * cands.length)] : pickNonMatch(pool, target);
+      } else {
+        seq[i] = pickNonMatch(pool, target);
+      }
+    }
+    return seq;
+  }
+
+  function buildBlock(cfg, n) {
+    const seq = {};
+    const match = {};
+    for (const s of cfg.streams) {
+      const pool = G.pools[s];
+      seq[s] = buildSeq(pool, cfg.blockTrials, n, cfg.matchChance, cfg.lureChance);
+      match[s] = seq[s].map((it, i) => i >= n && it.id === seq[s][i - n].id);
+    }
+    return { seq: seq, match: match };
+  }
+
+  /* =========================================================
+     Screens
+  ========================================================= */
+  function showScreen(name) {
+    ['setup', 'game', 'results'].forEach(id => {
+      $('#' + id).classList.toggle('hidden', id !== name);
+    });
+    document.body.classList.toggle('inGame', name === 'game');
+    if (name !== 'game') {
+      $('#mobileBar').classList.add('hidden');
+      $('#sideLeft').classList.add('hidden');
+      $('#sideRight').classList.add('hidden');
+    }
+    window.scrollTo(0, 0);
+  }
+
+  /* =========================================================
+     Board rendering
+  ========================================================= */
+  function hideAllTiles() {
+    $$('#game .tile.show').forEach(el => el.classList.remove('show'));
+    if (G.stim3d) {
+      G.stim3d = null;
+      render3D();
+    }
+  }
+
+  function buildBoard(cfg) {
+    const is3d = cfg.grid === '3d';
+    $('#board2d').classList.toggle('hidden', is3d);
+    $('#scene3d').classList.toggle('hidden', !is3d);
+    hideAllTiles();
+    if (is3d) build3D(cfg);
+    else build2D(cfg);
+  }
+
+  function build2D(cfg) {
+    G.d3 = null;
+    const board = $('#board2d');
+    board.innerHTML = '';
+    board.classList.remove('hidden');
+    const gap = window.innerWidth < 640 ? 8 : 10;
+    const maxW = Math.min(window.innerWidth - 44, 740);
+    const maxH = window.innerHeight * (cfg.mobile ? 0.54 : 0.66);
+    const cw = (maxW - gap * (cfg.cols - 1)) / cfg.cols;
+    const ch = (maxH - gap * (cfg.rows - 1)) / cfg.rows;
+    const size = Math.max(24, Math.min(cw, ch, 126));
+    board.style.gridTemplateColumns = 'repeat(' + cfg.cols + ', ' + size + 'px)';
+    board.style.gridTemplateRows = 'repeat(' + cfg.rows + ', ' + size + 'px)';
+    board.style.gap = gap + 'px';
+    const frag = document.createDocumentFragment();
+    for (let r = 0; r < cfg.rows; r++) {
+      for (let c = 0; c < cfg.cols; c++) {
+        const idx = r * cfg.cols + c;
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        cell.dataset.idx = String(idx);
+        cell.innerHTML = '<div class="tile"></div>';
+        frag.appendChild(cell);
+      }
+    }
+    board.appendChild(frag);
+    G.board.center = Math.floor(cfg.rows / 2) * cfg.cols + Math.floor(cfg.cols / 2);
+  }
+
+  /* ---- 3D view: software-projected canvas ----
+     The lattice used to be ~50 CSS-3D divs inside a perspective container.
+     The compositor rasterises each transformed element once and then resamples
+     that bitmap, so as the cube turned every hairline thinned out and
+     stair-stepped. Here the vertices are projected by hand and every line is
+     stroked at a constant width on every frame, so the weight is the same at
+     any angle and the rasteriser keeps the edges anti-aliased. Faces are
+     sorted against the lines with a painter's algorithm, which gives real
+     occlusion instead of z-fighting. */
+
+  const D3_RAD = Math.PI / 180;
+
+  /* Rotate a point exactly like the CSS transform did: X, then Y, then Z. */
+  function d3Rotate(p, rx, ry, rz) {
+    const cz = Math.cos(rz), sz = Math.sin(rz);
+    const x1 = p[0] * cz - p[1] * sz;
+    const y1 = p[0] * sz + p[1] * cz;
+    const cy = Math.cos(ry), sy = Math.sin(ry);
+    const x2 = x1 * cy + p[2] * sy;
+    const z2 = -x1 * sy + p[2] * cy;
+    const cx = Math.cos(rx), sx = Math.sin(rx);
+    return [x2, y1 * cx - z2 * sx, y1 * sx + z2 * cx];
+  }
+
+  function build3D(cfg) {
+    const scene = $('#scene3d');
+    const cv = $('#cv3d');
+    const ctx = cv.getContext('2d');
+    // The canvas has to hold the whole turning silhouette, so it is allowed to
+    // use most of the stage rather than a small inscribed square.
+    const maxW = Math.min(window.innerWidth - 36, 700);
+    const maxH = window.innerHeight * (cfg.mobile ? 0.5 : 0.76);
+    const size = Math.round(Math.max(210, Math.min(maxW, maxH)));
+    scene.style.width = size + 'px';
+    scene.style.height = size + 'px';
+
+    const maxDim = Math.max(cfg.dx, cfg.dy, cfg.dz);
+    // Whole-pixel pitch, so the projected lattice lands on a stable grid.
+    let cell = Math.round((size * 0.88) / maxDim);
+    if (cell % 2) cell += 1;
+
+    // Cap the backing store: past ~1300 px the extra pixels cost frame time
+    // without being visible at this size.
+    const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1, 1300 / size));
+    cv.width = Math.round(size * dpr);
+    cv.height = Math.round(size * dpr);
+    cv.style.width = size + 'px';
+    cv.style.height = size + 'px';
+
+    // Camera distance as a multiple of the scene, so the perspective reads the
+    // same whatever the grid size.
+    const focal = size * 2.7;
+
+    const x0 = -(cfg.dx * cell) / 2;
+    const y0 = -(cfg.dy * cell) / 2;
+    const z0 = -(cfg.dz * cell) / 2;
+
+    // Every grid boundary in world space, one flat list for all three axes.
+    // The twelve outer edges are just the lines that happen to sit on the
+    // outside, so they are drawn by the same code at the same weight.
+    const lines = [];
+    for (let j = 0; j <= cfg.dy; j++) {
+      for (let k = 0; k <= cfg.dz; k++) {
+        const y = y0 + j * cell, z = z0 + k * cell;
+        lines.push([x0, y, z, x0 + cfg.dx * cell, y, z]);
+      }
+    }
+    for (let i = 0; i <= cfg.dx; i++) {
+      for (let k = 0; k <= cfg.dz; k++) {
+        const x = x0 + i * cell, z = z0 + k * cell;
+        lines.push([x, y0, z, x, y0 + cfg.dy * cell, z]);
+      }
+    }
+    for (let i = 0; i <= cfg.dx; i++) {
+      for (let j = 0; j <= cfg.dy; j++) {
+        const x = x0 + i * cell, y = y0 + j * cell;
+        lines.push([x, y, z0, x, y, z0 + cfg.dz * cell]);
+      }
+    }
+
+    // CSS simply let the turning lattice spill outside its box; a canvas would
+    // clip it. Sample the poses the configured rotation can actually reach and
+    // scale the projection so the whole silhouette stays inside the canvas.
+    const corners = [];
+    for (let a = 0; a < 2; a++) {
+      for (let b = 0; b < 2; b++) {
+        for (let c = 0; c < 2; c++) {
+          corners.push([a ? -x0 : x0, b ? -y0 : y0, c ? -z0 : z0]);
+        }
+      }
+    }
+    const poses = [];
+    if (!cfg.rotate || !(Number(cfg.rotSpeed) > 0)) {
+      poses.push([-16, -26, 0]);
+    } else if (!cfg.randomRot) {
+      for (let a = 0; a < 360; a += 5) poses.push([-16, -26 + a, 0]);
+    } else {
+      for (let a = 0; a < 360; a += 30) {
+        for (let b = 0; b < 360; b += 30) {
+          for (let c = 0; c < 360; c += 30) poses.push([a, b, c]);
+        }
+      }
+    }
+    let maxR = 1;
+    for (let p = 0; p < poses.length; p++) {
+      const prx = poses[p][0] * D3_RAD, pry = poses[p][1] * D3_RAD, prz = poses[p][2] * D3_RAD;
+      for (let i = 0; i < corners.length; i++) {
+        const r = d3Rotate(corners[i], prx, pry, prz);
+        const s = focal / Math.max(1, focal - r[2]);
+        const d = Math.max(Math.abs(r[0] * s), Math.abs(r[1] * s));
+        if (d > maxR) maxR = d;
+      }
+    }
+    const zoom = Math.min(1, (size / 2 - 7) / maxR);
+
+    G.d3 = {
+      ctx: ctx, cv: cv, dpr: dpr, size: size, focal: focal, zoom: zoom,
+      dx: cfg.dx, dy: cfg.dy, dz: cfg.dz, cell: cell,
+      x0: x0, y0: y0, z0: z0,
+      halfDiag: Math.max(cfg.dx, cfg.dy, cfg.dz) * cell * 0.87,
+      lines: lines,
+      rx: -16, ry: -26, rz: 0
+    };
+    G.stim3d = null;
+
+    render3D();
+
+    G.board.center = Math.floor(cfg.dx / 2) +
+      Math.floor(cfg.dy / 2) * cfg.dx +
+      Math.floor(cfg.dz / 2) * cfg.dx * cfg.dy;
+  }
+
+  function render3D() {
+    const b = G.d3;
+    if (!b) return;
+    const ctx = b.ctx;
+    if (!ctx) return;
+    const size = b.size, focal = b.focal, zoom = b.zoom;
+    const cx = size / 2, cy = size / 2;
+    const rx = b.rx * D3_RAD, ry = b.ry * D3_RAD, rz = b.rz * D3_RAD;
+
+    ctx.setTransform(b.dpr, 0, 0, b.dpr, 0, 0);
+    ctx.clearRect(0, 0, size, size);
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+
+    // One rotation for every point in the frame.
+    const crz = Math.cos(rz), srz = Math.sin(rz);
+    const cry = Math.cos(ry), sry = Math.sin(ry);
+    const crx = Math.cos(rx), srx = Math.sin(rx);
+    const rot = p => {
+      const x1 = p[0] * crz - p[1] * srz;
+      const y1 = p[0] * srz + p[1] * crz;
+      const x2 = x1 * cry + p[2] * sry;
+      const z2 = -x1 * sry + p[2] * cry;
+      return [x2, y1 * crx - z2 * srx, y1 * srx + z2 * crx];
+    };
+    const proj = r => {
+      const s = (focal / Math.max(1, focal - r[2])) * zoom;
+      return [cx + r[0] * s, cy + r[1] * s, r[2]];
+    };
+
+    // Lattice, split into two depth bands and batched into one path each. Four
+    // stroke calls per frame instead of ~100 is what removed the stutter, and
+    // the cube is painted afterwards so no line can ever cross it.
+    const farBand = [];
+    const nearBand = [];
+    for (let i = 0; i < b.lines.length; i++) {
+      const L = b.lines[i];
+      const a = proj(rot([L[0], L[1], L[2]]));
+      const c = proj(rot([L[3], L[4], L[5]]));
+      const band = (a[2] + c[2]) / 2 > 0 ? nearBand : farBand;
+      band.push(a[0], a[1], c[0], c[1]);
+    }
+    const strokeBand = (arr, alpha) => {
+      if (!arr.length) return;
+      ctx.beginPath();
+      for (let i = 0; i < arr.length; i += 4) {
+        ctx.moveTo(arr[i], arr[i + 1]);
+        ctx.lineTo(arr[i + 2], arr[i + 3]);
+      }
+      // Dark bed plus crisp hairline: same weight on every edge, at any angle,
+      // over the background and over white faces alike.
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = 'rgba(0,0,0,.5)';
+      ctx.stroke();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = 'rgba(255,255,255,' + alpha + ')';
+      ctx.stroke();
+    };
+    strokeBand(farBand, 0.42);
+    strokeBand(nearBand, 0.68);
+
+    const stim = G.stim3d;
+    if (!stim) return;
+
+    // Solid stimulus cube, painted last and over everything else.
+    const h = b.cell / 2 - Math.max(1.5, b.cell * 0.02);
+    const ox = b.x0 + (stim.x + 0.5) * b.cell;
+    const oy = b.y0 + (stim.y + 0.5) * b.cell;
+    const oz = b.z0 + (stim.z + 0.5) * b.cell;
+    const corner = (sx, sy, sz) => [ox + sx * h, oy + sy * h, oz + sz * h];
+    const faceDefs = [
+      { n: [0, 0, 1], q: [corner(-1, -1, 1), corner(1, -1, 1), corner(1, 1, 1), corner(-1, 1, 1)] },
+      { n: [0, 0, -1], q: [corner(1, -1, -1), corner(-1, -1, -1), corner(-1, 1, -1), corner(1, 1, -1)] },
+      { n: [1, 0, 0], q: [corner(1, -1, 1), corner(1, -1, -1), corner(1, 1, -1), corner(1, 1, 1)] },
+      { n: [-1, 0, 0], q: [corner(-1, -1, -1), corner(-1, -1, 1), corner(-1, 1, 1), corner(-1, 1, -1)] },
+      { n: [0, 1, 0], q: [corner(-1, 1, 1), corner(1, 1, 1), corner(1, 1, -1), corner(-1, 1, -1)] },
+      { n: [0, -1, 0], q: [corner(-1, -1, -1), corner(1, -1, -1), corner(1, -1, 1), corner(-1, -1, 1)] }
+    ];
+    const faces = [];
+    for (let f = 0; f < faceDefs.length; f++) {
+      const def = faceDefs[f];
+      const rp = def.q.map(rot);
+      const fz = (rp[0][2] + rp[1][2] + rp[2][2] + rp[3][2]) / 4;
+      const fx = (rp[0][0] + rp[1][0] + rp[2][0] + rp[3][0]) / 4;
+      const fy = (rp[0][1] + rp[1][1] + rp[2][1] + rp[3][1]) / 4;
+      const n = rot(def.n);
+      // Back-face culling: the eye sits at +focal on the z axis.
+      if (n[0] * -fx + n[1] * -fy + n[2] * (focal - fz) <= 0) continue;
+      faces.push({ z: fz, pts: rp.map(proj), n: n });
+    }
+    faces.sort((p, q) => p.z - q.z);
+
+    const light = [-0.38, -0.62, 0.68];
+    const seenEdges = new Set();
+
+    for (let fi = 0; fi < faces.length; fi++) {
+      const it = faces[fi];
+      const pts = it.pts;
+      ctx.beginPath();
+      ctx.moveTo(pts[0][0], pts[0][1]);
+      ctx.lineTo(pts[1][0], pts[1][1]);
+      ctx.lineTo(pts[2][0], pts[2][1]);
+      ctx.lineTo(pts[3][0], pts[3][1]);
+      ctx.closePath();
+      // Everything painted on a face stays inside it: the image / shape is
+      // mapped through a parallelogram, which can poke past the real quad at
+      // steep angles.
+      ctx.save();
+      ctx.clip();
+      ctx.fillStyle = stim.color || '#ffffff';
+      ctx.fill();
+      if (stim.imgEl && stim.imgEl.ready) quadImage(ctx, stim.imgEl.img, pts);
+      if (stim.raster && stim.raster.ready) quadImage(ctx, stim.raster.canvas, pts, 0.05);
+      // Shade by the face normal so the cube reads as a solid, not a sticker.
+      const lit = Math.max(0, it.n[0] * light[0] + it.n[1] * light[1] + it.n[2] * light[2]);
+      ctx.fillStyle = 'rgba(0,0,0,' + (0.46 * (1 - lit)).toFixed(3) + ')';
+      ctx.fill();
+      ctx.restore();
+
+      // Outline: each edge once, so shared edges are not drawn twice.
+      ctx.beginPath();
+      for (let k = 0; k < 4; k++) {
+        const p0 = pts[k], p1 = pts[(k + 1) % 4];
+        const ka = Math.round(p0[0] * 2) + ',' + Math.round(p0[1] * 2);
+        const kb = Math.round(p1[0] * 2) + ',' + Math.round(p1[1] * 2);
+        const ek = ka < kb ? ka + '|' + kb : kb + '|' + ka;
+        if (seenEdges.has(ek)) continue;
+        seenEdges.add(ek);
+        ctx.moveTo(p0[0], p0[1]);
+        ctx.lineTo(p1[0], p1[1]);
+      }
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(0,0,0,.38)';
+      ctx.stroke();
+    }
+  }
+
+  /* Paint an image (or a rasterised shape) into a projected quad by mapping the
+     unit square onto the parallelogram the quad spans. */
+  function quadImage(ctx, src, pts, inset) {
+    const m = inset || 0;
+    const ax = pts[1][0] - pts[0][0], ay = pts[1][1] - pts[0][1];
+    const bx = pts[3][0] - pts[0][0], by = pts[3][1] - pts[0][1];
+    ctx.save();
+    ctx.transform(ax, ay, bx, by, pts[0][0], pts[0][1]);
+    ctx.drawImage(src, m, m, 1 - 2 * m, 1 - 2 * m);
+    ctx.restore();
+  }
+
+  function startRotation(cfg) {
+    stopRotation();
+    if (cfg.grid !== '3d' || !G.d3) return;
+    const sp = clamp(Number(cfg.rotSpeed) || 0, 0, 120);
+    if (!cfg.rotate || sp <= 0) {
+      G.d3.rx = -16;
+      G.d3.ry = -26;
+      G.d3.rz = 0;
+      render3D();
+      return;
+    }
+
+    if (!cfg.randomRot) {
+      let ang = G.rotAngle || 0;
+      let last = performance.now();
+      const step = (t) => {
+        if (!G.running || !G.d3) { G.raf = 0; return; }
+        const dt = Math.min(0.06, (t - last) / 1000);
+        last = t;
+        ang = (ang + sp * dt) % 360;
+        G.rotAngle = ang;
+        G.d3.rx = -16;
+        G.d3.ry = -26 + ang;
+        G.d3.rz = 0;
+        render3D();
+        G.raf = requestAnimationFrame(step);
+      };
+      G.raf = requestAnimationFrame(step);
+      return;
+    }
+
+    // Random tumbling: every axis gets its own signed, constantly drifting
+    // velocity, so the cube never settles into a single clockwise spin.
+    const sign = () => (Math.random() < 0.5 ? -1 : 1);
+    const makeTarget = () => ({
+      x: sign() * sp * (0.15 + Math.random() * 0.45),
+      y: sign() * sp * (0.25 + Math.random() * 0.55),
+      z: sign() * sp * (0.10 + Math.random() * 0.40)
+    });
+    G.d3.rx = -14;
+    G.d3.ry = -20;
+    G.d3.rz = 0;
+    let vx = 0, vy = 0, vz = 0;
+    let target = makeTarget();
+    let nextShift = 5 + Math.random() * 6;
+    let last = performance.now();
+    const step = (t) => {
+      if (!G.running || !G.d3) { G.raf = 0; return; }
+      const dt = Math.min(0.06, (t - last) / 1000);
+      last = t;
+      nextShift -= dt;
+      if (nextShift <= 0) {
+        target = makeTarget();
+        nextShift = 5 + Math.random() * 7;
+      }
+      const k = Math.min(1, dt * 0.9);
+      vx += (target.x - vx) * k;
+      vy += (target.y - vy) * k;
+      vz += (target.z - vz) * k;
+      G.d3.rx = (G.d3.rx + vx * dt) % 360;
+      G.d3.ry = (G.d3.ry + vy * dt) % 360;
+      G.d3.rz = (G.d3.rz + vz * dt) % 360;
+      render3D();
+      G.raf = requestAnimationFrame(step);
+    };
+    G.raf = requestAnimationFrame(step);
+  }
+
+  function stopRotation() {
+    if (G.raf) cancelAnimationFrame(G.raf);
+    G.raf = 0;
+  }
+
+  function renderStimulus(i, cfg) {
+    hideAllTiles();
+    const hasVisual = cfg.streams.some(s => s !== 'audio' && s !== 'space');
+    if (!hasVisual) return;
+    const idx = cfg.streams.includes('position') ? G.seq.position[i].idx : G.board.center;
+    // The 3D view has no per-cell element: the canvas draws the lit slot from
+    // the index. Only the 2D board needs a DOM lookup.
+    const cell = cfg.grid === '3d' ? null : $('#board2d [data-idx="' + idx + '"]');
+    if (cfg.grid !== '3d' && !cell) return;
+
+    const hasShape = cfg.streams.includes('shape');
+    const hasColor = cfg.streams.includes('color');
+    let color = '#ffffff';
+    let img = null;
+    if (hasColor) {
+      const item = G.seq.color[i];
+      color = item.color || '#ffffff';
+      img = item.img || null;
+    } else if (cfg.colCustom && U.customImages.length) {
+      const item = U.customImages[Math.floor(Math.random() * U.customImages.length)];
+      img = item.img;
+    }
+
+    // Shape + colour together: the shape itself carries the colour — a solid
+    // fill, or the image / generative art as an SVG pattern — on a white
+    // board. Shape alone paints a black silhouette on white. Without the
+    // shape stream the colour fills the whole tile or cube face.
+    let shapeFill = null;
+    let shapeImg = null;
+    if (hasShape) {
+      if (hasColor && img) shapeImg = img;
+      else shapeFill = hasColor ? color : '#000000';
+      color = '#ffffff';
+      img = null;
+    }
+    const shape = hasShape ? shapeSVG(G.seq.shape[i].inner, shapeFill, shapeImg) : '';
+    const bg = img ? 'url("' + img + '")' : 'none';
+
+    if (cfg.grid === '3d') {
+      // The canvas renderer draws the lit slot itself: the same fill goes on
+      // all six faces, with the shape rasterised once and mapped onto each
+      // visible one.
+      const dx = G.d3 ? G.d3.dx : cfg.dx;
+      const dy = G.d3 ? G.d3.dy : cfg.dy;
+      G.stim3d = {
+        x: idx % dx,
+        y: Math.floor(idx / dx) % dy,
+        z: Math.floor(idx / (dx * dy)),
+        color: color,
+        imgEl: img ? imageFor(img) : null,
+        raster: hasShape ? shapeRaster(shape) : null
+      };
+      render3D();
+      return;
+    }
+
+    const tile = cell.querySelector('.tile');
+    if (!tile) return;
+    tile.style.backgroundColor = color;
+    tile.style.backgroundImage = bg;
+    tile.style.backgroundSize = 'cover';
+    tile.style.backgroundPosition = 'center';
+    tile.style.backgroundRepeat = 'no-repeat';
+    tile.innerHTML = shape;
+    // Colour sources fill the whole grid box; a shape always sits on white.
+    tile.classList.toggle('full', !hasShape && !!(img || cfg.streams.includes('color')));
+    tile.classList.add('show');
+  }
+
+  /* =========================================================
+     HUD
+  ========================================================= */
+  function buildHud(cfg) {
+    $('#hudChips').innerHTML = cfg.streams.map(s =>
+      '<span class="chip" data-stream="' + s + '"><i class="dot" style="background:' + META[s].color + '"></i>' +
+      META[s].label + '<kbd>' + keyLabel(cfg.keys[s]) + '</kbd></span>'
+    ).join('');
+    $('#legend').innerHTML = cfg.streams.map(s =>
+      '<span class="leg"><i class="dot" style="background:' + META[s].color + '"></i>' +
+      META[s].label + ' <kbd>' + keyLabel(cfg.keys[s]) + '</kbd></span>'
+    ).join('');
+    $('#nVal').textContent = cfg.n;
+  }
+
+  function buildMobileBar(cfg) {
+    const bar = $('#mobileBar');
+    bar.innerHTML = cfg.streams.map(s =>
+      '<button type="button" data-stream="' + s + '">' + META[s].label + '</button>'
+    ).join('');
+    bar.classList.toggle('hidden', !cfg.mobile);
+  }
+
+  /* =========================================================
+     Response buttons + feedback
+  ========================================================= */
+  function buildSideBars(cfg) {
+    const left = $('#sideLeft');
+    const right = $('#sideRight');
+    left.innerHTML = '';
+    right.innerHTML = '';
+    if (cfg.mobile || !cfg.sideButtons) {
+      left.classList.add('hidden');
+      right.classList.add('hidden');
+      return;
+    }
+    const half = Math.ceil(cfg.streams.length / 2);
+    cfg.streams.forEach((s, i) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'sideBtn';
+      btn.dataset.stream = s;
+      btn.innerHTML = '<i class="dot" style="background:' + META[s].color + '"></i>' +
+        '<span>' + META[s].label + '</span>' +
+        '<span class="key">' + keyLabel(cfg.keys[s]) + '</span>';
+      (i < half ? left : right).appendChild(btn);
+    });
+    left.classList.remove('hidden');
+    right.classList.remove('hidden');
+  }
+
+  function responseButtons(stream) {
+    return $$('#sideLeft .sideBtn[data-stream="' + stream + '"], ' +
+      '#sideRight .sideBtn[data-stream="' + stream + '"], ' +
+      '#mobileBar button[data-stream="' + stream + '"]');
+  }
+
+  function clearFeedback() {
+    $$('.sideBtn.feedGood, .sideBtn.feedBad, #mobileBar button.feedGood, #mobileBar button.feedBad')
+      .forEach(b => b.classList.remove('feedGood', 'feedBad'));
+  }
+
+  function flashStream(stream, good) {
+    if (!G.cfg || !G.cfg.fbColors) return;
+    const cls = good ? 'feedGood' : 'feedBad';
+    responseButtons(stream).forEach(btn => {
+      btn.classList.remove('feedGood', 'feedBad');
+      void btn.offsetWidth;
+      btn.classList.add(cls);
+    });
+  }
+
+  /* A short WebAudio tone — no files, no loading, no speech queue. */
+  let beepCtx = null;
+  function primeBeep() {
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      if (!beepCtx) beepCtx = new AC();
+      if (beepCtx.state === 'suspended') beepCtx.resume();
+    } catch (e) { /* noop */ }
+  }
+
+  function errorBeep() {
+    if (!G.cfg || !G.cfg.beep) return;
+    try {
+      primeBeep();
+      if (!beepCtx) return;
+      const t0 = beepCtx.currentTime;
+      const osc = beepCtx.createOscillator();
+      const gain = beepCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(320, t0);
+      osc.frequency.exponentialRampToValueAtTime(190, t0 + 0.16);
+      gain.gain.setValueAtTime(0.0001, t0);
+      gain.gain.exponentialRampToValueAtTime(0.16, t0 + 0.012);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.19);
+      osc.connect(gain);
+      gain.connect(beepCtx.destination);
+      osc.start(t0);
+      osc.stop(t0 + 0.2);
+    } catch (e) { /* noop */ }
+  }
+
+  /* Spatial stream without speech: one short sine tone panned fully to one
+     ear. The tone is identical on both sides — only the stereo image carries
+     the stimulus. */
+  function playSpatial(side) {
+    try {
+      primeBeep();
+      if (!beepCtx) return;
+      const ctx = beepCtx;
+      if (ctx.state === 'suspended') ctx.resume();
+      const t0 = ctx.currentTime + 0.02;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(520, t0);
+      gain.gain.setValueAtTime(0.0001, t0);
+      gain.gain.exponentialRampToValueAtTime(0.22, t0 + 0.015);
+      gain.gain.setValueAtTime(0.22, t0 + 0.30);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.45);
+      let out = gain;
+      if (typeof ctx.createStereoPanner === 'function') {
+        const panner = ctx.createStereoPanner();
+        panner.pan.value = side < 0 ? -1 : 1;
+        gain.connect(panner);
+        out = panner;
+      } else if (typeof ctx.createPanner === 'function') {
+        const panner = ctx.createPanner();
+        panner.panningModel = 'equalpower';
+        panner.setPosition(side < 0 ? -1 : 1, 0, 0);
+        gain.connect(panner);
+        out = panner;
+      }
+      osc.connect(gain);
+      out.connect(ctx.destination);
+      osc.start(t0);
+      osc.stop(t0 + 0.47);
+    } catch (e) { /* noop */ }
+  }
+
+  /* ---- panned spoken audio (Audio + Spatial) ----
+     speechSynthesis plays straight to the system mixer and exposes neither a
+     stream nor a stereo pan, so a spoken word can never be routed through Web
+     Audio. This bundled eSpeak build renders the word to a WAV buffer instead;
+     the buffer is decoded once, cached per phrase, and played through a
+     StereoPanner hard to the left or right ear. No beep is involved. */
+  const MESPEAK_DIR = 'vendor/mespeak/';
+  let mespeakLoad = null;
+  const pannedVoice = new Map();
+
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      const el = document.createElement('script');
+      el.src = src;
+      el.onload = () => resolve();
+      el.onerror = () => reject(new Error('missing ' + src));
+      document.head.appendChild(el);
+    });
+  }
+
+  function loadPannedVoice() {
+    if (mespeakLoad) return mespeakLoad;
+    mespeakLoad = (async () => {
+      if (!window.meSpeak) {
+        // The voice JSON ships as a data URL: XHR to a local file is blocked on
+        // file:// pages, while a data URL loads from anywhere.
+        if (!window.MESPEAK_VOICE_URL) await loadScript(MESPEAK_DIR + 'voice-data.js');
+        // meSpeak forks into a Web Worker by default and file:// pages cannot
+        // spawn workers. Hiding the constructor while it binds its run mode
+        // makes it inject the core with a script tag, which works everywhere.
+        const RealWorker = window.Worker;
+        try { window.Worker = undefined; } catch (e) { /* noop */ }
+        try { await loadScript(MESPEAK_DIR + 'mespeak.js'); }
+        finally { window.Worker = RealWorker; }
+      }
+      if (!window.meSpeak) throw new Error('voice engine unavailable');
+      await new Promise((resolve, reject) => {
+        window.meSpeak.loadVoice(window.MESPEAK_VOICE_URL, ok => {
+          if (ok) resolve();
+          else reject(new Error('voice data unavailable'));
+        });
+      });
+      return window.meSpeak;
+    })();
+    return mespeakLoad;
+  }
+
+  function voiceWav(text) {
+    return new Promise(resolve => {
+      try {
+        window.meSpeak.speak(text, { rawdata: true, speed: 150 }, (ok, id, wav) => {
+          resolve(ok && wav ? wav : null);
+        });
+      } catch (e) { resolve(null); }
+    });
+  }
+
+  async function preparePannedVoice(texts) {
+    primeBeep();
+    if (!beepCtx) return false;
+    try { await loadPannedVoice(); } catch (e) { return false; }
+    await Promise.all(texts.map(async text => {
+      if (pannedVoice.has(text)) return;
+      const wav = await voiceWav(text);
+      if (!wav) return;
+      // The core returns an ArrayBuffer; older builds may hand back a view.
+      const raw = wav instanceof ArrayBuffer
+        ? wav
+        : (wav.buffer instanceof ArrayBuffer ? wav.buffer : null);
+      if (!raw) return;
+      try {
+        const buf = await beepCtx.decodeAudioData(raw.slice(0));
+        pannedVoice.set(text, buf);
+      } catch (e) { /* leave it uncached and try again next session */ }
+    }));
+    return pannedVoice.size > 0;
+  }
+
+  function playPannedSpeech(side, text) {
+    const buf = pannedVoice.get(text);
+    if (!buf || !beepCtx) return false;
+    try {
+      const ctx = beepCtx;
+      if (ctx.state === 'suspended') ctx.resume();
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      let out = src;
+      if (typeof ctx.createStereoPanner === 'function') {
+        const panner = ctx.createStereoPanner();
+        panner.pan.value = side < 0 ? -1 : 1;
+        src.connect(panner);
+        out = panner;
+      } else if (typeof ctx.createPanner === 'function') {
+        const panner = ctx.createPanner();
+        panner.panningModel = 'equalpower';
+        panner.setPosition(side < 0 ? -1 : 1, 0, 0);
+        src.connect(panner);
+        out = panner;
+      } else {
+        return false;
+      }
+      out.connect(ctx.destination);
+      src.start();
+      return true;
+    } catch (e) { return false; }
+  }
+
+  /* The top strip carries one counter only: how many blocks are already in
+     the bag. No trial bar, no live accuracy. */
+  function updateBlocksPassed(cfg) {
+    $('#blocksPassed').textContent = G.blocks.length;
+    $('#blocksTotal').textContent = '/ ' + cfg.blockCount;
+  }
+
+  function updateNBadge() {
+    const el = $('#nVal');
+    el.textContent = G.n;
+    const badge = el.closest('.nBadge');
+    if (badge) {
+      badge.classList.remove('pulse');
+      void badge.offsetWidth;
+      badge.classList.add('pulse');
+    }
+  }
+
+  function startTimer(cfg) {
+    stopTimer();
+    const start = performance.now();
+    G.sessionStart = start;
+    const tick = () => {
+      if (!G.running) return;
+      const elapsed = (performance.now() - start) / 1000;
+      $('#timerText').textContent = cfg.timeLimit
+        ? fmtTime(Math.max(0, cfg.timeLimit * 60 - elapsed))
+        : fmtTime(elapsed);
+      G.timerId = setTimeout(tick, 500);
+    };
+    tick();
+  }
+
+  function stopTimer() {
+    if (G.timerId) clearTimeout(G.timerId);
+    G.timerId = 0;
+  }
+
+  function isTimeUp(cfg) {
+    if (!cfg.timeLimit) return false;
+    return (performance.now() - G.sessionStart) / 1000 >= cfg.timeLimit * 60;
+  }
+
+  /* =========================================================
+     Overlay helpers
+  ========================================================= */
+  function showOverlay(html, action) {
+    const ov = $('#overlay');
+    ov.innerHTML = '<div class="overlayCard">' + html + '</div>';
+    ov.classList.remove('hidden');
+    G.overlayAction = action || null;
+    const btn = $('#ovBtn');
+    if (btn) {
+      btn.addEventListener('click', function () { runOverlayAction(); });
+    }
+  }
+
+  function runOverlayAction() {
+    const fn = G.overlayAction;
+    G.overlayAction = null;
+    if (fn) fn();
+  }
+
+  function hideOverlay() {
+    const ov = $('#overlay');
+    ov.classList.add('hidden');
+    ov.innerHTML = '';
+    G.overlayAction = null;
+  }
+
+  function waitable(ms, token) {
+    return new Promise(resolve => {
+      const start = performance.now();
+      const tick = () => {
+        if (token !== G.token || !G.running) return resolve();
+        const left = ms - (performance.now() - start);
+        if (left <= 4) return resolve();
+        setTimeout(tick, Math.min(left, 60));
+      };
+      tick();
+    });
+  }
+
+  /* =========================================================
+     Session engine
+  ========================================================= */
+  function press(stream) {
+    if (!G.running || !G.respondOpen) return;
+    if (!G.cfg || !G.cfg.streams.includes(stream)) return;
+    if (G.presses[stream]) return;
+    G.presses[stream] = true;
+    const chip = $('#hudChips .chip[data-stream="' + stream + '"]');
+    if (chip) {
+      chip.classList.remove('hit');
+      void chip.offsetWidth;
+      chip.classList.add('hit');
+    }
+    responseButtons(stream).forEach(btn => {
+      btn.classList.add('press');
+      setTimeout(() => btn.classList.remove('press'), 150);
+    });
+    // Feedback lands the moment the key is pressed, not at the end of the
+    // trial: green for a true match, red for a false alarm.
+    if (G.match && G.trialIndex >= G.n) {
+      const good = !!G.match[stream][G.trialIndex];
+      flashStream(stream, good);
+      if (!good) errorBeep();
+      // Brief flash so the button is readable again while the interval runs.
+      setTimeout(() => {
+        responseButtons(stream).forEach(btn => btn.classList.remove('feedGood', 'feedBad'));
+      }, 240);
+    }
+  }
+
+  function evaluateTrial(i, cfg, block) {
+    let bad = false;
+    for (const s of cfg.streams) {
+      if (i < G.n) continue;
+      const m = !!G.match[s][i];
+      const p = !!G.presses[s];
+      const c = block.perStream[s];
+      // Pressed streams were already flashed the instant the key went down, so
+      // only an unpressed target still needs feedback here. Correct rejections
+      // leave the buttons alone.
+      if (m && p) { c.hits++; }
+      else if (m && !p) { c.misses++; bad = true; flashStream(s, false); }
+      else if (!m && p) { c.fa++; }
+      else { c.cr++; }
+    }
+    if (bad) errorBeep();
+  }
+
+  async function runTrial(i, cfg, token, block) {
+    G.presses = {};
+    clearFeedback();
+    G.respondOpen = true;
+    renderStimulus(i, cfg);
+    const spoken = cfg.streams.includes('audio');
+    const spatial = cfg.streams.includes('space');
+    const side = spatial ? G.seq.space[i].side : 0;
+    // Audio + Spatial: the word itself is panned and no beep is played. If the
+    // offline voice is unavailable, fall back to the browser voice (centred).
+    if (spoken) {
+      if (!(spatial && playPannedSpeech(side, G.seq.audio[i].text))) speak(G.seq.audio[i].text);
+    } else if (spatial) {
+      playSpatial(side);
+    }
+    await waitable(cfg.stimMs, token);
+    if (token !== G.token) return;
+    hideAllTiles();
+    // The response window stays open through the blank inter-stimulus interval,
+    // so the trial is decided once that interval ends.
+    if (cfg.isiMs) await waitable(cfg.isiMs, token);
+    if (token !== G.token) return;
+    G.respondOpen = false;
+    evaluateTrial(i, cfg, block);
+    // Hold the red/green state long enough to be seen before the next trial.
+    if (cfg.fbColors) await waitable(240, token);
+  }
+
+  async function runBlock(b, cfg, token) {
+    const n = G.n;
+    const t0 = Date.now();
+    const built = buildBlock(cfg, n);
+    G.seq = built.seq;
+    G.match = built.match;
+    const counts = {};
+    cfg.streams.forEach(s => { counts[s] = { hits: 0, misses: 0, fa: 0, cr: 0 }; });
+    const block = {
+      index: b, nStart: n, nEnd: n, trials: 0, secs: 0,
+      decisions: 0, correct: 0, acc: null, perStream: counts
+    };
+    G.blockIndex = b;
+    G.blockStats = block;
+    updateBlocksPassed(cfg);
+
+    for (let i = 0; i < cfg.blockTrials; i++) {
+      if (token !== G.token || !G.running) return null;
+      if (isTimeUp(cfg)) break;
+      G.trialIndex = i;
+      await runTrial(i, cfg, token, block);
+      if (token !== G.token || !G.running) return null;
+      block.trials++;
+    }
+    if (!block.trials) return null;
+    block.secs = Math.round((Date.now() - t0) / 1000);
+    return block;
+  }
+
+  function finalizeBlock(block, cfg) {
+    let dec = 0, cor = 0;
+    const tally = { hits: 0, misses: 0, fa: 0, cr: 0 };
+    for (const s of cfg.streams) {
+      const c = block.perStream[s];
+      const d = c.hits + c.misses + c.fa + c.cr;
+      block.perStream[s].decisions = d;
+      block.perStream[s].acc = accFromCounts(c.hits, c.misses, c.fa);
+      block.perStream[s].hitRate = hitRate(c.hits, c.misses);
+      dec += d;
+      cor += c.hits + c.cr;
+      tally.hits += c.hits; tally.misses += c.misses;
+      tally.fa += c.fa; tally.cr += c.cr;
+      const t = G.totals.perStream[s];
+      t.hits += c.hits; t.misses += c.misses; t.fa += c.fa; t.cr += c.cr;
+    }
+    block.decisions = dec;
+    block.correct = cor;
+    block.counts = tally;
+    block.acc = accFromCounts(tally.hits, tally.misses, tally.fa);
+    G.totals.decisions = (G.totals.decisions || 0) + dec;
+    G.totals.correct = (G.totals.correct || 0) + cor;
+
+    let nEnd = block.nStart;
+    if (cfg.autoProg && block.acc !== null) {
+      if (block.acc > cfg.upTh) nEnd = block.nStart + 1;
+      else if (block.acc < cfg.downTh) nEnd = Math.max(1, block.nStart - 1);
+    }
+    block.nEnd = nEnd;
+
+    saveHistory({
+      ts: Date.now(),
+      sid: G.sessionId,
+      streams: cfg.streams,
+      grid: cfg.grid,
+      block: block.index + 1,
+      blocks: cfg.blockCount,
+      from: block.nStart,
+      to: nEnd,
+      acc: block.acc,
+      trials: block.trials,
+      hits: tally.hits,
+      misses: tally.misses,
+      fa: tally.fa,
+      cr: tally.cr,
+      secs: block.secs || 0,
+      auto: cfg.autoProg
+    });
+  }
+
+  function showBlockSummary(block, cfg, isLast) {
+    return new Promise(resolve => {
+      const done = (v) => {
+        if (G.pendingResolve === done) G.pendingResolve = null;
+        hideOverlay();
+        resolve(v);
+      };
+      G.pendingResolve = done;
+
+      const accTxt = block.acc === null ? '—' : block.acc + '%';
+      let verdict = 'No scored trials';
+      if (block.acc !== null) {
+        if (block.acc > cfg.upTh) verdict = 'above ' + cfg.upTh + '% target';
+        else if (block.acc < cfg.downTh) verdict = 'below ' + cfg.downTh + '% target';
+        else verdict = 'inside target band';
+      }
+      const nTxt = block.nEnd > block.nStart ? 'N ' + block.nStart + ' → ' + block.nEnd
+        : block.nEnd < block.nStart ? 'N ' + block.nStart + ' → ' + block.nEnd
+        : 'N stays at ' + block.nStart;
+
+      const per = cfg.streams.map(s => {
+        const c = block.perStream[s];
+        return '<div class="ovStream"><span class="dot" style="background:' + META[s].color + '"></span>' +
+          '<span>' + META[s].label + '</span><b>' + (c.acc === null ? '—' : c.acc + '%') + '</b></div>';
+      }).join('');
+
+      showOverlay(
+        '<div class="kicker">Block ' + (block.index + 1) + ' of ' + cfg.blockCount + ' complete</div>' +
+        '<div class="ovTitle">' + accTxt + '</div>' +
+        '<div class="ovSub">' + verdict + ' · ' + nTxt + '</div>' +
+        '<div class="ovStreams">' + per + '</div>' +
+        '<button type="button" class="btn primary" id="ovBtn">' + (isLast ? 'View results' : 'Continue') + '</button>' +
+        '<div class="ovHint">Enter or space to ' + (isLast ? 'finish' : 'continue') + '</div>',
+        function () {
+          const r = G.pendingResolve;
+          if (r) r(true);
+        }
+      );
+    });
+  }
+
+  async function countdown(cfg, token) {
+    showOverlay(
+      '<div class="kicker">Get ready</div>' +
+      '<div class="countNum" id="cdNum">3</div>' +
+      '<div class="ovSub">N = ' + cfg.n + ' · ' +
+      cfg.streams.map(s => META[s].label).join(' + ') + '<br>' + cfg.blockTrials + ' trials per block</div>',
+      null
+    );
+    for (const n of [3, 2, 1]) {
+      if (token !== G.token) return;
+      const el = $('#cdNum');
+      if (el) el.textContent = String(n);
+      await waitable(620, token);
+    }
+    hideOverlay();
+  }
+
+  function collectStimulusImages(cfg) {
+    const urls = new Set();
+    if (G.pools && G.pools.color) {
+      G.pools.color.forEach(item => { if (item.img) urls.add(item.img); });
+    }
+    if (cfg.colCustom && U.customImages.length) {
+      U.customImages.forEach(item => { if (item.img) urls.add(item.img); });
+    }
+    return Array.from(urls);
+  }
+
+  function preloadImages(urls) {
+    return Promise.all(urls.map(src => new Promise(resolve => {
+      const im = new Image();
+      im.onload = () => resolve(true);
+      im.onerror = () => resolve(false);
+      im.src = src;
+    })));
+  }
+
+  async function prepareSession(cfg, token) {
+    // Voice warming no longer runs per session. Phrases are pre-rendered on
+    // demand (or silently re-warmed once after a reload) and reused. A
+    // session only preloads its stimulus images.
+    const urls = collectStimulusImages(cfg);
+    if (urls.length) {
+      await preloadImages(urls);
+      if (token !== G.token || !G.running) return;
+    }
+
+    if (cfg.streams.includes('audio') && cfg.streams.includes('space')) {
+      showOverlay(
+        '<div class="kicker">Preparing</div>' +
+        '<div class="ovTitle" style="font-size:34px">Offline voice</div>' +
+        '<div class="ovSub">Rendering the spoken stimuli for left / right playback&hellip;</div>',
+        null
+      );
+      let ok = false;
+      try { ok = await preparePannedVoice(G.pools.audio.map(item => item.text)); }
+      catch (e) { ok = false; }
+      if (token !== G.token || !G.running) { hideOverlay(); return; }
+      hideOverlay();
+      if (!ok) toast('Offline voice could not load — spoken words stay centred.');
+    }
+  }
+
+  async function runSession(cfg, token) {
+    await prepareSession(cfg, token);
+    if (token !== G.token || !G.running) return;
+    await countdown(cfg, token);
+    if (token !== G.token || !G.running) return;
+    startTimer(cfg);
+
+    for (let b = 0; b < cfg.blockCount; b++) {
+      if (token !== G.token || !G.running) return;
+      if (isTimeUp(cfg)) break;
+
+      const block = await runBlock(b, cfg, token);
+      if (token !== G.token || !G.running) return;
+      if (!block) break;
+
+      finalizeBlock(block, cfg);
+      G.blocks.push(block);
+      updateBlocksPassed(cfg);
+      G.n = block.nEnd;
+      updateNBadge();
+      G.blockStats = null;
+
+      const isLast = (b === cfg.blockCount - 1) || isTimeUp(cfg);
+      const go = await showBlockSummary(block, cfg, isLast);
+      if (token !== G.token || !go) return;
+      if (isLast) break;
+    }
+    finishSession();
+  }
+
+  function startSession() {
+    // Five-syllable words are persisted, so a one-time voice pre-render stays
+    // valid across sessions and reloads.
+    currentSyllableWords();
+    updateSyllableHint();
+
+    let cfg;
+    try {
+      cfg = readCfg();
+    } catch (err) {
+      toast(err && err.message ? err.message : String(err));
+      return;
+    }
+
+    stopSessionLoops();
+    primeSpeech();
+    G.cfg = cfg;
+    G.n = cfg.n;
+    G.blockIndex = 0;
+    G.blocks = [];
+    G.totals = { decisions: 0, correct: 0, perStream: {} };
+    ORDER.forEach(s => { G.totals.perStream[s] = { hits: 0, misses: 0, fa: 0, cr: 0 }; });
+    G.rotAngle = G.rotAngle || 0;
+
+    try {
+      G.pools = buildPools(cfg);
+    } catch (err) {
+      toast(err && err.message ? err.message : String(err));
+      return;
+    }
+
+    G.running = true;
+    G.token++;
+    const token = G.token;
+    G.sessionId = Date.now();
+    G.sessionStart = 0;
+    G.sessionSecs = 0;
+    G.respondOpen = false;
+    G.presses = {};
+
+    document.body.classList.toggle('mobile', cfg.mobile);
+    showScreen('game');
+    buildBoard(cfg);
+    buildHud(cfg);
+    buildMobileBar(cfg);
+    buildSideBars(cfg);
+    clearFeedback();
+    updateBlocksPassed(cfg);
+    startRotation(cfg);
+    runSession(cfg, token);
+  }
+
+  function stopSessionLoops() {
+    G.running = false;
+    G.token++;
+    G.respondOpen = false;
+    stopTimer();
+    stopRotation();
+    clearFeedback();
+    try { if ('speechSynthesis' in window) speechSynthesis.cancel(); } catch (e) { /* noop */ }
+  }
+
+  function finishSession() {
+    if ($('#game').classList.contains('hidden')) return;
+    if (G.pendingResolve) {
+      const r = G.pendingResolve;
+      G.pendingResolve = null;
+      r(false);
+    }
+    if (G.sessionStart) G.sessionSecs = Math.round((performance.now() - G.sessionStart) / 1000);
+    stopSessionLoops();
+    hideOverlay();
+    $('#mobileBar').classList.add('hidden');
+    showScreen('results');
+    renderResults();
+  }
+
+  function endSession() {
+    if (!G.running) return;
+    G.running = false;
+    G.token++;
+    finishSession();
+  }
+
+  /* =========================================================
+     Results + history
+  ========================================================= */
+  function renderResults() {
+    const cfg = G.cfg || { streams: [] };
+    const blocks = G.blocks || [];
+    const tally = blocks.reduce((a, b) => {
+      const c = b.counts || { hits: 0, misses: 0, fa: 0, cr: 0 };
+      a.hits += c.hits; a.misses += c.misses; a.fa += c.fa; a.cr += c.cr;
+      return a;
+    }, { hits: 0, misses: 0, fa: 0, cr: 0 });
+    const acc = accFromCounts(tally.hits, tally.misses, tally.fa);
+    const trials = blocks.reduce((a, b) => a + b.trials, 0);
+    const best = blocks.reduce((m, b) => Math.max(m, b.nStart || 0, b.nEnd || 0), cfg.n || G.n);
+
+    $('#resN').textContent = G.n;
+    $('#resBest').textContent = best;
+    const accEl = $('#resAcc');
+    accEl.textContent = acc === null ? '—' : acc + '%';
+    accEl.className = 'v ' + accClass(acc);
+    const hr = hitRate(tally.hits, tally.misses);
+    $('#resHit').textContent = hr === null ? '—' : hr + '%';
+    $('#resFA').textContent = tally.fa;
+    $('#resBlocks').textContent = blocks.length;
+    $('#resTrials').textContent = trials;
+    $('#resTime').textContent = fmtTime(G.sessionSecs || 0);
+    $('#resMode').textContent = cfg.streams && cfg.streams.length
+      ? cfg.streams.map(s => META[s].label).join(' + ') +
+        ' · ' + (cfg.grid === '3d' ? '3D cube' : '2D grid') +
+        ' · ' + (cfg.autoProg ? 'auto-progression' : 'fixed N')
+      : '—';
+
+    if (blocks.length) {
+      const rows = blocks.map(b => {
+        const delta = b.nEnd > b.nStart ? '+' + (b.nEnd - b.nStart)
+          : b.nEnd < b.nStart ? String(b.nEnd - b.nStart) : '—';
+        const dcls = b.nEnd > b.nStart ? 'up' : b.nEnd < b.nStart ? 'down' : 'dim';
+        const errs = (b.counts ? b.counts.misses + b.counts.fa : 0);
+        return '<tr><td>' + (b.index + 1) + '</td><td>' + b.nStart + '</td>' +
+          '<td class="' + accClass(b.acc) + '">' + (b.acc === null ? '—' : b.acc + '%') + '</td>' +
+          '<td>' + errs + '</td>' +
+          '<td class="' + dcls + '">' + delta + '</td><td>' + b.trials + '</td></tr>';
+      }).join('');
+      $('#blockTable').innerHTML = '<div class="tableWrap"><table><thead><tr>' +
+        '<th>Block</th><th>N</th><th>Accuracy</th><th>Errors</th><th>Δ N</th><th>Trials</th>' +
+        '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+    } else {
+      $('#blockTable').innerHTML = '<p class="note">No complete blocks were recorded.</p>';
+    }
+
+    const srows = ORDER.filter(s => cfg.streams && cfg.streams.includes(s)).map(s => {
+      const c = G.totals.perStream[s];
+      const a = accFromCounts(c.hits, c.misses, c.fa);
+      const hr2 = hitRate(c.hits, c.misses);
+      return '<tr><td>' + META[s].label + '</td><td class="' + accClass(a) + '">' +
+        (a === null ? '—' : a + '%') + '</td><td>' + (hr2 === null ? '—' : hr2 + '%') +
+        '</td><td>' + c.hits + '</td><td>' + c.misses + '</td><td>' + c.fa + '</td></tr>';
+    }).join('');
+    $('#streamTable').innerHTML = srows
+      ? '<div class="tableWrap"><table><thead><tr><th>Stream</th><th>Accuracy</th><th>Hit rate</th><th>Hits</th><th>Misses</th><th>False alarms</th></tr></thead><tbody>' + srows + '</tbody></table></div>'
+      : '<p class="note">No data.</p>';
+  }
+
+  function loadHistory() {
+    try {
+      const raw = localStorage.getItem('nback_history_v1');
+      const arr = JSON.parse(raw);
+      return Array.isArray(arr) ? arr : [];
+    } catch (e) { return []; }
+  }
+
+  function saveHistory(entry) {
+    try {
+      const arr = loadHistory();
+      arr.unshift(entry);
+      localStorage.setItem('nback_history_v1', JSON.stringify(arr.slice(0, 400)));
+    } catch (e) { /* storage may be unavailable */ }
+  }
+
+  function openHistory() {
+    const arr = loadHistory();
+    let html;
+    if (!arr.length) {
+      html = '<p class="note">Nothing recorded yet. Complete a block and your N progression will appear here.</p>';
+    } else {
+      // Totals across every recorded block. Older entries from before the
+      // signal-based accuracy existed have no hit/miss counts and are simply
+      // left out of the aggregate.
+      const agg = arr.reduce((a, e) => {
+        a.hits += e.hits || 0; a.misses += e.misses || 0;
+        a.fa += e.fa || 0; a.trials += e.trials || 0;
+        a.secs += e.secs || 0;
+        return a;
+      }, { hits: 0, misses: 0, fa: 0, trials: 0, secs: 0 });
+      const acc = accFromCounts(agg.hits, agg.misses, agg.fa);
+      const best = arr.reduce((m, e) => Math.max(m, e.to || 0, e.from || 0), 0);
+      const sessions = new Set(arr.map(e => e.sid || ('t' + e.ts))).size;
+      const stat = (k, v, cls) => '<div class="stat"><div class="k">' + k +
+        '</div><div class="v' + (cls ? ' ' + cls : '') + '">' + v + '</div></div>';
+      const summary = '<div class="resultGrid histGrid">' +
+        stat('Blocks', arr.length) +
+        stat('Sessions', sessions) +
+        stat('Best N', best || '—') +
+        stat('Accuracy', acc === null ? '—' : acc + '%', accClass(acc)) +
+        stat('Errors', agg.misses + agg.fa) +
+        stat('Trials', agg.trials) +
+        stat('Time trained', fmtTime(agg.secs)) +
+        '</div>';
+      const rows = arr.slice(0, 150).map(e => {
+        const d = new Date(e.ts);
+        const when = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' ' +
+          d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+        const nTxt = e.from === e.to
+          ? '<span class="mutedN">' + e.from + '</span>'
+          : '<span class="' + (e.to > e.from ? 'up' : 'down') + '">' + e.from + ' → ' + e.to + '</span>';
+        const streamsTxt = Array.isArray(e.streams)
+          ? e.streams.map(s => META[s] ? META[s].label : s).join(' + ')
+          : cap(e.mode || '');
+        const errors = (e.misses === undefined && e.fa === undefined)
+          ? '—' : (e.misses || 0) + (e.fa || 0);
+        return '<tr><td class="dim">' + when + '</td><td>' + (streamsTxt || '—') +
+          '</td><td>' + e.block + '</td><td class="' + accClass(e.acc) + '">' +
+          (e.acc === null || e.acc === undefined ? '—' : e.acc + '%') + '</td>' +
+          '<td>' + errors + '</td><td>' + nTxt + '</td></tr>';
+      }).join('');
+      html = summary +
+        '<div class="tableWrap"><table><thead><tr><th>When</th><th>Streams</th><th>Block</th><th>Accuracy</th><th>Errors</th><th>N</th></tr></thead><tbody>' +
+        rows + '</tbody></table></div>' +
+        '<p class="note">Newest first. Accuracy counts target presses, misses and false alarms only. Up to 400 block results are stored on this device.</p>';
+    }
+    $('#histBody').innerHTML = html;
+    $('#histModal').classList.remove('hidden');
+  }
+
+  /* =========================================================
+     Input handling
+  ========================================================= */
+  function handleKeydown(e) {
+    if (U.binding) {
+      e.preventDefault();
+      if (e.key === 'Escape') {
+        U.binding = null;
+        renderKeys();
+        return;
+      }
+      if (e.key === 'Shift' || e.key === 'Control' || e.key === 'Alt' || e.key === 'Meta') return;
+      const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+      const dup = Object.keys(U.keys).find(s => U.keys[s] === k && s !== U.binding);
+      if (dup) {
+        toast('That key is already used for ' + META[dup].label + '.');
+        return;
+      }
+      U.keys[U.binding] = k;
+      U.binding = null;
+      renderKeys();
+      saveSettings();
+      return;
+    }
+
+    const tag = e.target && e.target.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+
+    if ($('#histModal').classList.contains('hidden') === false) {
+      if (e.key === 'Escape') $('#histModal').classList.add('hidden');
+      return;
+    }
+
+    if (G.running) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        endSession();
+        return;
+      }
+      if (G.overlayAction && (e.key === 'Enter' || e.key === ' ')) {
+        e.preventDefault();
+        runOverlayAction();
+        return;
+      }
+      if (!G.respondOpen) {
+        if (e.key === ' ') e.preventDefault();
+        return;
+      }
+      const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+      const stream = G.cfg.streams.find(s => G.cfg.keys[s] === k);
+      if (stream) {
+        e.preventDefault();
+        press(stream);
+      } else if (e.key === ' ') {
+        e.preventDefault();
+      }
+      return;
+    }
+
+    if ($('#game').classList.contains('hidden') === false &&
+        $('#overlay').classList.contains('hidden') === false &&
+        G.overlayAction && (e.key === 'Enter' || e.key === ' ')) {
+      e.preventDefault();
+      runOverlayAction();
+    }
+  }
+
+  /* =========================================================
+     Init + events
+  ========================================================= */
+  function init() {
+    $$('.seg').forEach(seg => {
+      seg.addEventListener('click', e => {
+        const btn = e.target.closest('button');
+        if (!btn) return;
+        $$('button', seg).forEach(b => b.classList.toggle('on', b === btn));
+        const which = seg.dataset.seg;
+        if (which === 'grid') {
+          U.grid = btn.dataset.val;
+          syncGrid();
+        }
+        updateSetupHint();
+        saveSettings();
+      });
+    });
+
+    $$('#streamPicker input').forEach(box => {
+      box.addEventListener('change', syncStreams);
+    });
+
+    $('#rotateOn').addEventListener('change', syncRotSpeedRow);
+
+    $('#voicePrepBtn').addEventListener('click', async () => {
+      if (!('speechSynthesis' in window)) {
+        toast('Speech synthesis is not available in this browser.');
+        return;
+      }
+      primeSpeech();
+      try {
+        if (!speechSynthesis.getVoices().length) {
+          toast('No speech voices are loaded in this browser yet.');
+          return;
+        }
+      } catch (e) { /* noop */ }
+      const pool = buildAudioPool(currentAudioSel(), parseWords($('#customWords').value));
+      if (!pool.length) {
+        toast('Enable an audio source first.');
+        return;
+      }
+      const note = $('#voiceCacheNote');
+      if (note) note.textContent = 'Preparing 0 / ' + pool.length + '…';
+      await warmVoiceCache(pool, (n, total) => {
+        if (note) note.textContent = 'Preparing ' + n + ' / ' + total + '…';
+      });
+      updateVoiceCacheNote(pool);
+      toast('Voice cache ready.');
+    });
+    $('#customWords').addEventListener('input', () => {
+      saveCustomWords($('#customWords').value);
+      updateVoiceCacheNote();
+    });
+    $('#audLetters').addEventListener('change', () => updateVoiceCacheNote());
+    $('#audNumbers').addEventListener('change', () => updateVoiceCacheNote());
+    $('#audSyllables').addEventListener('change', () => updateVoiceCacheNote());
+    $('#audCustom').addEventListener('change', () => updateVoiceCacheNote());
+    $('#sylBtn').addEventListener('click', () => {
+      regenerateSyllableWords();
+      toast('New 5-syllable words saved. Pre-render to cache their voices.');
+    });
+
+    const bindOut = (id, outId, fmt) => {
+      const el = $('#' + id);
+      const out = $('#' + outId);
+      const upd = () => { out.textContent = fmt(el.value); };
+      el.addEventListener('input', upd);
+      upd();
+    };
+    bindOut('stimMs', 'stimMsOut', v => v + ' ms');
+    bindOut('isiMs', 'isiMsOut', v => v + ' ms');
+    bindOut('rotSpeed', 'rotSpeedOut', v => v + '°/s');
+    bindOut('matchChance', 'matchChanceOut', v => v + '%');
+    bindOut('lureChance', 'lureChanceOut', v => v + '%');
+
+    $('#stimMs').addEventListener('input', updateTrialLen);
+    $('#isiMs').addEventListener('input', updateTrialLen);
+
+    $('#cards').addEventListener('input', e => {
+      if (e.target.matches('input, textarea')) {
+        updateSetupHint();
+        if (e.target.id === 'blockTrials' || e.target.id === 'blockCount' || e.target.id === 'timeLimit') {
+          updateSessionEstimate();
+        }
+      }
+    });
+
+    $('#colCustom').addEventListener('change', () => {
+      $('#customImgWrap').classList.toggle('hidden', !$('#colCustom').checked);
+    });
+    $('#imgBtn').addEventListener('click', () => $('#imgInput').click());
+    $('#imgInput').addEventListener('change', async e => {
+      const files = Array.from(e.target.files || []);
+      e.target.value = '';
+      for (const f of files) {
+        if (U.customImages.length >= 12) { toast('Up to 12 custom images.'); break; }
+        if (!f.type.startsWith('image/')) continue;
+        try {
+          U.customImages.push(await fileToImage(f));
+        } catch (err) {
+          toast('Could not read ' + f.name + '.');
+        }
+      }
+      saveImageCache();
+      renderThumbs();
+    });
+    $('#imgThumbs').addEventListener('click', e => {
+      const btn = e.target.closest('button[data-rm]');
+      if (!btn) return;
+      U.customImages.splice(Number(btn.dataset.rm), 1);
+      saveImageCache();
+      renderThumbs();
+    });
+
+    $$('.keyBtn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        U.binding = btn.dataset.stream;
+        renderKeys();
+      });
+    });
+
+    $('#histBtn').addEventListener('click', openHistory);
+    $('#homeProgBtn').addEventListener('click', openHistory);
+    $('#resHistBtn').addEventListener('click', openHistory);
+    $('#histClose').addEventListener('click', () => $('#histModal').classList.add('hidden'));
+    $('#histModal').addEventListener('click', e => {
+      if (e.target === $('#histModal')) $('#histModal').classList.add('hidden');
+    });
+
+    $('#setup').addEventListener('change', saveSettings);
+    $('#setup').addEventListener('input', e => {
+      if (e.target && e.target.id === 'customWords') return; // stored separately
+      saveSettings();
+    });
+
+    $('#mobileMode').addEventListener('change', e => {
+      document.body.classList.toggle('mobile', e.target.checked);
+    });
+
+    $('#startBtn').addEventListener('click', startSession);
+    $('#endBtn').addEventListener('click', endSession);
+    $('#againBtn').addEventListener('click', startSession);
+    $('#backBtn').addEventListener('click', () => {
+      showScreen('setup');
+      $('#mobileBar').classList.add('hidden');
+      endSession();
+    });
+
+    $('#mobileBar').addEventListener('pointerdown', e => {
+      const btn = e.target.closest('button[data-stream]');
+      if (!btn) return;
+      e.preventDefault();
+      press(btn.dataset.stream);
+    });
+
+    ['#sideLeft', '#sideRight'].forEach(sel => {
+      $(sel).addEventListener('pointerdown', e => {
+        const btn = e.target.closest('button[data-stream]');
+        if (!btn) return;
+        e.preventDefault();
+        press(btn.dataset.stream);
+      });
+    });
+
+    $('#fbBeep').addEventListener('change', () => {
+      if (G.cfg) G.cfg.beep = $('#fbBeep').checked;
+      if ($('#fbBeep').checked) primeBeep();
+    });
+    $('#fbColors').addEventListener('change', () => {
+      if (G.cfg) G.cfg.fbColors = $('#fbColors').checked;
+      if (!G.cfg || !G.cfg.fbColors) clearFeedback();
+    });
+    $('#fbSide').addEventListener('change', () => {
+      if (G.running && G.cfg) {
+        G.cfg.sideButtons = $('#fbSide').checked;
+        buildSideBars(G.cfg);
+      }
+    });
+
+    window.addEventListener('keydown', handleKeydown);
+
+    if ('speechSynthesis' in window) {
+      const refresh = () => pickVoice();
+      try {
+        speechSynthesis.addEventListener('voiceschanged', refresh);
+      } catch (err) { /* older browsers */ }
+    }
+
+    // Default mobile mode on small touch devices
+    const small = window.matchMedia('(max-width: 760px)').matches;
+    const coarse = window.matchMedia('(pointer: coarse)').matches;
+    const mob = small && coarse;
+    $('#mobileMode').checked = mob;
+    document.body.classList.toggle('mobile', mob);
+
+    applySettings(loadSettings());
+
+    syncStreams();
+    syncGrid();
+    loadImageCache();
+    loadVoiceManifestPhrases();
+    $('#customWords').value = loadCustomWords();
+    updateSyllableHint();
+    renderThumbs();
+    renderKeys();
+    updateTrialLen();
+    updateSessionEstimate();
+    updateSetupHint();
+    updateVoiceCacheNote();
+
+    // First gesture: unlock WebAudio, prime speech, and silently re-warm the
+    // stored phrase cache in the background.
+    let primed = false;
+    const primeOnce = () => {
+      if (primed) return;
+      primed = true;
+      primeBeep();
+      primeSpeech();
+      setTimeout(autoWarmVoice, 500);
+    };
+    window.addEventListener('pointerdown', primeOnce);
+    window.addEventListener('keydown', primeOnce);
+
+    // Chrome can leave synthesis paused; nudge it so audio keeps playing.
+    if ('speechSynthesis' in window) {
+      setInterval(() => {
+        try {
+          if (speechSynthesis.speaking && speechSynthesis.paused) speechSynthesis.resume();
+        } catch (e) { /* noop */ }
+      }, 5000);
+    }
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
