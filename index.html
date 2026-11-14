@@ -427,11 +427,11 @@
         <label class="chk" data-classic><input type="checkbox" data-stream="color"><span>Color</span></label>
         <label class="chk" data-classic><input type="checkbox" data-stream="shape"><span>Shape</span></label>
         <label class="chk" data-classic><input type="checkbox" data-stream="audio" checked><span>Audio</span></label>
-        <label class="chk" data-classic><input type="checkbox" data-stream="space"><span>Spatial audio</span></label>
+        <label class="chk" data-classic><input type="checkbox" data-stream="space"><span>Audio Direction</span></label>
         <label class="chk hidden" data-relational><input type="checkbox" data-stream="number"><span>Visual</span></label>
       </div>
       <p class="note">Pick any combination of streams. Each active stream gets its own response key.</p>
-      <p class="note" data-classic>Spatial audio plays a short tone hard into the left or right ear only. A match is the same ear repeating N steps later &mdash; the tone itself never changes. With Audio on as well, the spoken word itself is panned hard to that ear by a bundled offline voice and no beep is played.</p>
+      <p class="note" data-classic>Audio Direction plays a short tone hard into the left or right ear only. A match is the same ear repeating N steps later &mdash; the tone itself never changes. With Audio on as well, the spoken word itself is panned hard to that ear by a bundled offline voice and no beep is played.</p>
       <p class="note hidden" data-relational>Relational mode offers Audio and Visual. Each runs its own sequence of numbers from the range below &mdash; Audio speaks them, Visual shows them. Respond when the gap between this number and the one N steps back equals the gap between the previous number and the one N steps before it. With N = 2, the run 1 4 3 6 is a target. Gaps use the absolute difference. Executive mode in the Configuration card swaps this for a simpler rule &mdash; one more than the number N steps back.</p>
     </div>
 
@@ -567,11 +567,8 @@
       <label class="chk"><input type="checkbox" id="audCustom"><span>Custom Words (EWMT)</span></label>
       <textarea id="customWords" placeholder="One word per line, e.g.&#10;river&#10;lantern&#10;orbit"></textarea>
       <div class="row" style="margin-top:6px">
-        <span class="lbl">Voice cache</span>
         <button type="button" class="btn ghost sm" id="sylBtn">New words</button>
-        <button type="button" class="btn ghost sm" id="voicePrepBtn">Pre-render</button>
       </div>
-      <p class="note" id="voiceCacheNote">Pre-render once. The phrase cache is stored on this device and reused after reload.</p>
     </div>
 
     <!-- Difficulty -->
@@ -618,7 +615,7 @@
         <div class="keyRow" data-classic><span><i class="dot" style="background:#e879f9"></i> Color</span><button type="button" class="keyBtn" data-stream="color">D</button></div>
         <div class="keyRow" data-classic><span><i class="dot" style="background:#a3e635"></i> Shape</span><button type="button" class="keyBtn" data-stream="shape">S</button></div>
         <div class="keyRow"><span><i class="dot" style="background:#fbbf24"></i> Audio</span><button type="button" class="keyBtn" data-stream="audio">L</button></div>
-        <div class="keyRow" data-classic><span><i class="dot" style="background:#a78bfa"></i> Spatial</span><button type="button" class="keyBtn" data-stream="space">K</button></div>
+        <div class="keyRow" data-classic><span><i class="dot" style="background:#a78bfa"></i> Audio Direction</span><button type="button" class="keyBtn" data-stream="space">K</button></div>
         <div class="keyRow hidden" data-relational><span><i class="dot" style="background:#38bdf8"></i> Visual</span><button type="button" class="keyBtn" data-stream="number">J</button></div>
       </div>
       <p class="note">Click a key, then press any key to rebind it. Escape cancels. Each active stream needs a unique key.</p>
@@ -807,7 +804,7 @@
     color: { label: 'Color', color: '#e879f9' },
     shape: { label: 'Shape', color: '#a3e635' },
     audio: { label: 'Audio', color: '#fbbf24' },
-    space: { label: 'Spatial', color: '#a78bfa' },
+    space: { label: 'Audio Direction', color: '#a78bfa' },
     number: { label: 'Visual', color: '#38bdf8' }
   };
   const ORDER = ['position', 'color', 'shape', 'audio', 'space', 'number'];
@@ -914,7 +911,6 @@
     syllableWords = randomFiveSyllableWords(SYLLABLE_WORD_COUNT);
     saveSyllableWords();
     updateSyllableHint();
-    updateVoiceCacheNote();
   }
 
   function updateSyllableHint() {
@@ -1277,7 +1273,6 @@
         if (voice) {
           try { localStorage.setItem(VOICE_NAME_KEY, voice.name); } catch (e) { /* noop */ }
         }
-        updateVoiceCacheNote();
       }
     } catch (e) { /* noop */ }
   }
@@ -1380,30 +1375,6 @@
     };
   }
 
-  function updateVoiceCacheNote(pool) {
-    const note = $('#voiceCacheNote');
-    if (!note) return;
-    if (!('speechSynthesis' in window)) {
-      note.textContent = 'Speech synthesis is not available in this browser.';
-      return;
-    }
-    const p = pool || buildAudioPool(currentAudioSel(), parseWords($('#customWords').value));
-    if (!p.length) {
-      note.textContent = 'Enable an audio source to cache phrases.';
-      return;
-    }
-    const n = voicePoolCount(p);
-    const stored = p.filter(item => VOICE_MANIFEST_PHRASES.has(item.text)).length;
-    if (n >= p.length) {
-      note.textContent = 'Ready — ' + p.length + ' phrase' + (p.length === 1 ? '' : 's') + ' cached' +
-        (voice ? ' with ' + voice.name : '') + '.';
-    } else if (stored) {
-      note.textContent = stored + ' of ' + p.length + ' phrases are stored on this device and re-warm on first use.';
-    } else {
-      note.textContent = 'Cached ' + n + ' of ' + p.length + ' phrases. Pre-render once and they are reused after reload.';
-    }
-  }
-
   function autoWarmVoice() {
     if (G.running || !('speechSynthesis' in window)) return;
     let pool;
@@ -1411,11 +1382,8 @@
       pool = buildAudioPool(currentAudioSel(), parseWords($('#customWords').value));
     } catch (e) { return; }
     if (!pool.length) return;
-    if (voicePoolCount(pool) >= pool.length) {
-      updateVoiceCacheNote(pool);
-      return;
-    }
-    warmVoiceCache(pool, null, () => G.running).then(() => updateVoiceCacheNote(pool));
+    if (voicePoolCount(pool) >= pool.length) return;
+    warmVoiceCache(pool, null, () => G.running);
   }
 
   /* =========================================================
@@ -3633,42 +3601,12 @@
     $('#mobileMode').addEventListener('change', e => syncMobileMode(e.target.checked));
     $('#mobileModeEwmt').addEventListener('change', e => syncMobileMode(e.target.checked));
 
-    $('#voicePrepBtn').addEventListener('click', async () => {
-      if (!('speechSynthesis' in window)) {
-        toast('Speech synthesis is not available in this browser.');
-        return;
-      }
-      primeSpeech();
-      try {
-        if (!speechSynthesis.getVoices().length) {
-          toast('No speech voices are loaded in this browser yet.');
-          return;
-        }
-      } catch (e) { /* noop */ }
-      const pool = buildAudioPool(currentAudioSel(), parseWords($('#customWords').value));
-      if (!pool.length) {
-        toast('Enable an audio source first.');
-        return;
-      }
-      const note = $('#voiceCacheNote');
-      if (note) note.textContent = 'Preparing 0 / ' + pool.length + '…';
-      await warmVoiceCache(pool, (n, total) => {
-        if (note) note.textContent = 'Preparing ' + n + ' / ' + total + '…';
-      });
-      updateVoiceCacheNote(pool);
-      toast('Voice cache ready.');
-    });
     $('#customWords').addEventListener('input', () => {
       saveCustomWords($('#customWords').value);
-      updateVoiceCacheNote();
     });
-    $('#audLetters').addEventListener('change', () => updateVoiceCacheNote());
-    $('#audNumbers').addEventListener('change', () => updateVoiceCacheNote());
-    $('#audSyllables').addEventListener('change', () => updateVoiceCacheNote());
-    $('#audCustom').addEventListener('change', () => updateVoiceCacheNote());
     $('#sylBtn').addEventListener('click', () => {
       regenerateSyllableWords();
-      toast('New 5-syllable words saved. Pre-render to cache their voices.');
+      toast('New 5-syllable words saved.');
     });
 
     const bindOut = (id, outId, fmt) => {
@@ -3805,7 +3743,6 @@
     updateTrialLen();
     updateSessionEstimate();
     updateSetupHint();
-    updateVoiceCacheNote();
 
     // First gesture: unlock WebAudio, prime speech, and silently re-warm the
     // stored phrase cache in the background.
