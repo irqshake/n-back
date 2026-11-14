@@ -216,6 +216,21 @@
     overflow:hidden;background:#fff;
   }
   .tile.show{opacity:1;transform:scale(1);box-shadow:0 0 26px rgba(255,255,255,.18)}
+  /* Relational mode: one square, no grid. The number is engraved into the
+     square by drawing it semi-transparent in the contrast tone. */
+  .numStage{display:flex;align-items:center;justify-content:center}
+  .numTile{
+    width:clamp(210px,44vmin,360px);aspect-ratio:1;border-radius:20px;background:#fff;
+    color:#000;display:flex;align-items:center;justify-content:center;
+    font-weight:700;font-size:clamp(84px,19vmin,150px);line-height:1;padding:0 6px;
+    font-variant-numeric:tabular-nums;letter-spacing:-.04em;overflow:hidden;
+    opacity:0;transform:scale(.92);transition:opacity .1s ease,transform .1s ease;
+  }
+  .numTile.show{opacity:1;transform:scale(1);box-shadow:0 0 34px rgba(255,255,255,.14)}
+  input[type=color]{
+    width:46px;height:32px;padding:0;border:1px solid var(--line2);border-radius:8px;
+    background:#08080c;cursor:pointer;
+  }
   /* 3D view: a single canvas. Lines are stroked at a constant pixel width and
      anti-aliased by the rasteriser, so nothing thins out or stair-steps as the
      lattice turns. */
@@ -403,19 +418,25 @@
     <!-- Streams -->
     <div class="card">
       <div class="card-h"><h2>Streams</h2></div>
+      <div class="seg" data-seg="mode">
+        <button type="button" data-val="classic" class="on">Classic (same item)</button>
+        <button type="button" data-val="relational">Relational (numbers)</button>
+      </div>
       <div class="streams" id="streamPicker">
-        <label class="chk"><input type="checkbox" data-stream="position" checked><span>Position</span></label>
-        <label class="chk"><input type="checkbox" data-stream="color"><span>Color</span></label>
-        <label class="chk"><input type="checkbox" data-stream="shape"><span>Shape</span></label>
-        <label class="chk"><input type="checkbox" data-stream="audio" checked><span>Audio</span></label>
-        <label class="chk"><input type="checkbox" data-stream="space"><span>Spatial audio</span></label>
+        <label class="chk" data-classic><input type="checkbox" data-stream="position" checked><span>Position</span></label>
+        <label class="chk" data-classic><input type="checkbox" data-stream="color"><span>Color</span></label>
+        <label class="chk" data-classic><input type="checkbox" data-stream="shape"><span>Shape</span></label>
+        <label class="chk" data-classic><input type="checkbox" data-stream="audio" checked><span>Audio</span></label>
+        <label class="chk" data-classic><input type="checkbox" data-stream="space"><span>Spatial audio</span></label>
+        <label class="chk hidden" data-relational><input type="checkbox" data-stream="number"><span>Visual</span></label>
       </div>
       <p class="note">Pick any combination of streams. Each active stream gets its own response key.</p>
-      <p class="note">Spatial audio plays a short tone hard into the left or right ear only. A match is the same ear repeating N steps later &mdash; the tone itself never changes. With Audio on as well, the spoken word itself is panned hard to that ear by a bundled offline voice and no beep is played.</p>
+      <p class="note" data-classic>Spatial audio plays a short tone hard into the left or right ear only. A match is the same ear repeating N steps later &mdash; the tone itself never changes. With Audio on as well, the spoken word itself is panned hard to that ear by a bundled offline voice and no beep is played.</p>
+      <p class="note hidden" data-relational>Relational mode offers Audio and Visual. Each runs its own sequence of numbers from the range below &mdash; Audio speaks them, Visual shows them. Respond when the gap between this number and the one N steps back equals the gap between the previous number and the one N steps before it. With N = 2, the run 1 4 3 6 is a target. Gaps use the absolute difference. Executive mode in the Configuration card swaps this for a simpler rule &mdash; one more than the number N steps back.</p>
     </div>
 
     <!-- Grid -->
-    <div class="card">
+    <div class="card" id="gridCard">
       <div class="card-h"><h2>Grid</h2></div>
       <div class="seg" data-seg="grid">
         <button type="button" data-val="2d" class="on">2D grid</button>
@@ -451,6 +472,39 @@
         <output id="rotSpeedOut">25&#176;/s</output>
       </div>
       <p class="note">3D mode draws one big cube out of evenly weighted grid lines; the stimulus fills the cell inside that lattice on all six sides. Random tumbling turns each axis independently &mdash; never a single clockwise spin.</p>
+    </div>
+
+    <!-- Numbers (relational mode) -->
+    <div class="card hidden" id="numbersCard">
+      <div class="card-h"><h2>Configuration</h2></div>
+      <label class="chk"><input type="checkbox" id="numExec"><span>Executive mode (+1 rule)</span></label>
+      <div class="row">
+        <span class="lbl">Range</span>
+        <div class="dims">
+          <input type="number" id="numMin" value="1" min="0" max="97" inputmode="numeric" aria-label="Smallest number">
+          <span class="x">&ndash;</span>
+          <input type="number" id="numMax" value="9" min="2" max="99" inputmode="numeric" aria-label="Largest number">
+        </div>
+      </div>
+      <label class="chk"><input type="checkbox" id="mobileModeEwmt"><span>Mobile mode</span></label>
+      <p class="note">Only numbers inside this range are spoken or shown. Executive mode changes the rule: a match is the current number being exactly one more than the number N steps back. With N = 2, the run 1 3 2 is a target.</p>
+    </div>
+
+    <!-- EWMT (relational mode) -->
+    <div class="card hidden" id="ewmtCard">
+      <div class="card-h"><h2>EWMT</h2></div>
+      <label class="chk"><input type="checkbox" id="numCustomImg"><span>Custom Background</span></label>
+      <div id="numImgWrap" class="hidden">
+        <input type="file" id="numImgInput" accept="image/*" multiple class="hidden">
+        <button type="button" class="btn ghost sm" id="numImgBtn">Upload images</button>
+        <div class="thumbs" id="numImgThumbs"></div>
+      </div>
+      <label class="chk"><input type="checkbox" id="ewmtWordsOn" checked><span>Custom Words</span></label>
+      <div id="ewmtWordsWrap">
+        <textarea id="customWordsEwmt" placeholder="One word per line, e.g.&#10;river&#10;lantern&#10;orbit"></textarea>
+      </div>
+      <p class="note">Uploaded backgrounds are shared with the classic Colors card. While Custom Background is on, the number is drawn fully black over the image.</p>
+      <p class="note">Custom words are spoken once per trial in relational training, and only while the Audio stream is off &mdash; so they never compete with the numbers.</p>
     </div>
 
     <!-- Timing -->
@@ -491,11 +545,11 @@
     </div>
 
     <!-- Colors -->
-    <div class="card">
+    <div class="card" id="colorsCard">
       <div class="card-h"><h2>Colors</h2></div>
       <label class="chk"><input type="checkbox" id="colStandard" checked><span>Standard colors</span></label>
       <label class="chk"><input type="checkbox" id="colGen"><span>Generative art</span></label>
-      <label class="chk"><input type="checkbox" id="colCustom"><span>Custom images</span></label>
+      <label class="chk"><input type="checkbox" id="colCustom"><span>Custom Images (EWMT)</span></label>
       <div id="customImgWrap" class="hidden">
         <input type="file" id="imgInput" accept="image/*" multiple class="hidden">
         <button type="button" class="btn ghost sm" id="imgBtn">Upload images</button>
@@ -505,12 +559,12 @@
     </div>
 
     <!-- Audio -->
-    <div class="card">
+    <div class="card" id="audioCard">
       <div class="card-h"><h2>Audio</h2></div>
       <label class="chk"><input type="checkbox" id="audLetters" checked><span>Letters</span></label>
       <label class="chk"><input type="checkbox" id="audNumbers"><span>Numbers</span></label>
       <label class="chk"><input type="checkbox" id="audSyllables"><span>5-syllable words <span class="unit" id="sylHint">(loading&hellip;)</span></span></label>
-      <label class="chk"><input type="checkbox" id="audCustom"><span>Custom words</span></label>
+      <label class="chk"><input type="checkbox" id="audCustom"><span>Custom Words (EWMT)</span></label>
       <textarea id="customWords" placeholder="One word per line, e.g.&#10;river&#10;lantern&#10;orbit"></textarea>
       <div class="row" style="margin-top:6px">
         <span class="lbl">Voice cache</span>
@@ -560,11 +614,12 @@
     <div class="card">
       <div class="card-h"><h2>Response keys</h2></div>
       <div class="keys" id="keyList">
-        <div class="keyRow"><span><i class="dot" style="background:#7dd3fc"></i> Position</span><button type="button" class="keyBtn" data-stream="position">A</button></div>
-        <div class="keyRow"><span><i class="dot" style="background:#e879f9"></i> Color</span><button type="button" class="keyBtn" data-stream="color">D</button></div>
-        <div class="keyRow"><span><i class="dot" style="background:#a3e635"></i> Shape</span><button type="button" class="keyBtn" data-stream="shape">S</button></div>
+        <div class="keyRow" data-classic><span><i class="dot" style="background:#7dd3fc"></i> Position</span><button type="button" class="keyBtn" data-stream="position">A</button></div>
+        <div class="keyRow" data-classic><span><i class="dot" style="background:#e879f9"></i> Color</span><button type="button" class="keyBtn" data-stream="color">D</button></div>
+        <div class="keyRow" data-classic><span><i class="dot" style="background:#a3e635"></i> Shape</span><button type="button" class="keyBtn" data-stream="shape">S</button></div>
         <div class="keyRow"><span><i class="dot" style="background:#fbbf24"></i> Audio</span><button type="button" class="keyBtn" data-stream="audio">L</button></div>
-        <div class="keyRow"><span><i class="dot" style="background:#a78bfa"></i> Spatial</span><button type="button" class="keyBtn" data-stream="space">K</button></div>
+        <div class="keyRow" data-classic><span><i class="dot" style="background:#a78bfa"></i> Spatial</span><button type="button" class="keyBtn" data-stream="space">K</button></div>
+        <div class="keyRow hidden" data-relational><span><i class="dot" style="background:#38bdf8"></i> Visual</span><button type="button" class="keyBtn" data-stream="number">J</button></div>
       </div>
       <p class="note">Click a key, then press any key to rebind it. Escape cancels. Each active stream needs a unique key.</p>
     </div>
@@ -579,10 +634,12 @@
     </div>
 
     <!-- Interface -->
-    <div class="card">
+    <div class="card" id="interfaceCard">
       <div class="card-h"><h2>Interface</h2></div>
-      <label class="chk"><input type="checkbox" id="mobileMode"><span>Mobile mode</span></label>
-      <p class="note">Desktop mode shows large response buttons on the sides of the game. Mobile mode moves them to a bar along the bottom.</p>
+      <div id="mobileModeRow">
+        <label class="chk"><input type="checkbox" id="mobileMode"><span>Mobile mode</span></label>
+        <p class="note">Desktop mode shows large response buttons on the sides of the game. Mobile mode moves them to a bar along the bottom.</p>
+      </div>
       <p class="note" style="margin-top:12px">Esc ends a running session. Space or Enter confirms block summaries.</p>
     </div>
 
@@ -616,6 +673,7 @@
     <div class="stage" id="stage">
       <div id="board2d" class="board2d"></div>
       <div id="scene3d" class="scene3d hidden"><canvas id="cv3d" class="cv3d"></canvas></div>
+      <div id="numStage" class="numStage hidden"><div class="numTile" id="numTile"></div></div>
     </div>
   </div>
 
@@ -749,9 +807,10 @@
     color: { label: 'Color', color: '#e879f9' },
     shape: { label: 'Shape', color: '#a3e635' },
     audio: { label: 'Audio', color: '#fbbf24' },
-    space: { label: 'Spatial', color: '#a78bfa' }
+    space: { label: 'Spatial', color: '#a78bfa' },
+    number: { label: 'Visual', color: '#38bdf8' }
   };
-  const ORDER = ['position', 'color', 'shape', 'audio', 'space'];
+  const ORDER = ['position', 'color', 'shape', 'audio', 'space', 'number'];
 
   // The spatial stream has no content of its own: the stimulus is which ear the
   // tone arrives in, so its pool is just the two sides.
@@ -1364,9 +1423,11 @@
   ========================================================= */
   const U = {
     grid: '2d',
+    mode: 'classic',
+    classicStreams: null,
     binding: null,
     customImages: [],
-    keys: { position: 'a', color: 'd', shape: 's', audio: 'l', space: 'k' }
+    keys: { position: 'a', color: 'd', shape: 's', audio: 'l', space: 'k', number: 'j' }
   };
 
   /* Everything on the setup screen is remembered on this device. Values are
@@ -1378,6 +1439,7 @@
     'colStandard', 'colGen', 'colCustom',
     'audLetters', 'audNumbers', 'audSyllables', 'audCustom',
     'matchChance', 'lureChance', 'autoProg', 'upTh', 'downTh', 'nStart',
+    'numMin', 'numMax', 'numCustomImg', 'ewmtWordsOn',
     'fbBeep', 'fbColors', 'fbSide', 'mobileMode'
   ];
 
@@ -1385,6 +1447,7 @@
     const o = {
       streams: currentStreams(),
       grid: U.grid,
+      mode: U.mode,
       keys: Object.assign({}, U.keys)
     };
     SETTINGS_IDS.forEach(id => {
@@ -1420,6 +1483,11 @@
     if (o.grid === '2d' || o.grid === '3d') {
       U.grid = o.grid;
       $$('.seg[data-seg="grid"] button').forEach(b => b.classList.toggle('on', b.dataset.val === U.grid));
+    }
+
+    if (o.mode === 'classic' || o.mode === 'relational') {
+      U.mode = o.mode;
+      $$('.seg[data-seg="mode"] button').forEach(b => b.classList.toggle('on', b.dataset.val === U.mode));
     }
 
     if (o.keys && typeof o.keys === 'object') {
@@ -1500,12 +1568,63 @@
   }
 
   function syncStreams() {
-    const boxes = $$('#streamPicker input');
+    const boxes = $$('#streamPicker input').filter(b => !b.closest('label').classList.contains('hidden'));
     if (!boxes.some(b => b.checked)) {
-      const first = boxes.find(b => b.dataset.stream === 'position') || boxes[0];
+      const first = boxes.find(b => b.dataset.stream === (U.mode === 'relational' ? 'audio' : 'position')) || boxes[0];
       if (first) first.checked = true;
     }
     updateSetupHint();
+  }
+
+  /* Relational mode swaps the whole stimulus vocabulary: the grid and the
+     colour/audio source cards are irrelevant, and only Audio and Visual stay
+     on offer. */
+  function applyModeUI() {
+    const rel = U.mode === 'relational';
+    $$('.seg[data-seg="mode"] button').forEach(b => b.classList.toggle('on', b.dataset.val === U.mode));
+    $$('#streamPicker label').forEach(l => {
+      const s = l.querySelector('input').dataset.stream;
+      l.classList.toggle('hidden', rel ? (s !== 'audio' && s !== 'number') : s === 'number');
+    });
+
+    // A stream that is not offered by the current mode must not stay checked.
+    $$('#streamPicker input').forEach(b => {
+      const s = b.dataset.stream;
+      if (rel ? (s !== 'audio' && s !== 'number') : s === 'number') b.checked = false;
+    });
+    $$('#keyList .keyRow').forEach(r => {
+      if (r.dataset.classic !== undefined) r.classList.toggle('hidden', rel);
+      if (r.dataset.relational !== undefined) r.classList.toggle('hidden', !rel);
+    });
+    $$('p.note[data-classic]').forEach(p => p.classList.toggle('hidden', rel));
+    $$('p.note[data-relational]').forEach(p => p.classList.toggle('hidden', !rel));
+    $('#gridCard').classList.toggle('hidden', rel);
+    $('#colorsCard').classList.toggle('hidden', rel);
+    $('#audioCard').classList.toggle('hidden', rel);
+    $('#numbersCard').classList.toggle('hidden', !rel);
+    $('#ewmtCard').classList.toggle('hidden', !rel);
+    $('#numImgWrap').classList.toggle('hidden', !$('#numCustomImg').checked);
+    $('#ewmtWordsWrap').classList.toggle('hidden', !$('#ewmtWordsOn').checked);
+    $('#interfaceCard').classList.toggle('hidden', rel);
+    $('#mobileModeEwmt').checked = $('#mobileMode').checked;
+  }
+
+  function setMode(mode) {
+    if (mode !== 'classic' && mode !== 'relational') return;
+    if (mode === U.mode) return;
+    if (U.mode === 'classic') {
+      U.classicStreams = currentStreams().filter(s => s !== 'number');
+    }
+    U.mode = mode;
+    const want = mode === 'relational'
+      ? ['audio', 'number']
+      : (U.classicStreams && U.classicStreams.length ? U.classicStreams : ['position']);
+    $$('#streamPicker input').forEach(b => {
+      b.checked = want.indexOf(b.dataset.stream) !== -1;
+    });
+    applyModeUI();
+    syncStreams();
+    saveSettings();
   }
 
   function syncGrid() {
@@ -1532,10 +1651,37 @@
   }
 
   function renderThumbs() {
-    const wrap = $('#imgThumbs');
-    wrap.innerHTML = U.customImages.map((img, i) =>
+    // The classic Colors card and the relational Configuration card share one image
+    // library, so both thumbnail strips are kept in sync.
+    const html = U.customImages.map((img, i) =>
       '<div class="thumb"><img src="' + img.thumb + '" alt=""><button type="button" data-rm="' + i + '" title="Remove image">×</button></div>'
     ).join('');
+    ['#imgThumbs', '#numImgThumbs'].forEach(sel => {
+      const wrap = $(sel);
+      if (wrap) wrap.innerHTML = html;
+    });
+  }
+
+  async function addImageFiles(list) {
+    for (const f of list) {
+      if (U.customImages.length >= 12) { toast('Up to 12 custom images.'); break; }
+      if (!f.type.startsWith('image/')) continue;
+      try {
+        U.customImages.push(await fileToImage(f));
+      } catch (err) {
+        toast('Could not read ' + f.name + '.');
+      }
+    }
+    saveImageCache();
+    renderThumbs();
+  }
+
+  function removeThumb(e) {
+    const btn = e.target.closest('button[data-rm]');
+    if (!btn) return;
+    U.customImages.splice(Number(btn.dataset.rm), 1);
+    saveImageCache();
+    renderThumbs();
   }
 
   function trialMs() {
@@ -1570,7 +1716,9 @@
   function updateSetupHint() {
     try {
       const streams = currentStreams().map(s => META[s] ? META[s].label : s);
-      const gridTxt = U.grid === '3d'
+      const gridTxt = U.mode === 'relational'
+        ? 'numbers ' + clampInt($('#numMin').value, 0, 97, 1) + '–' + clampInt($('#numMax').value, 2, 99, 9)
+        : U.grid === '3d'
         ? clampInt($('#dimx').value, 2, 6, 3) + '×' + clampInt($('#dimy').value, 2, 6, 3) + '×' + clampInt($('#dimz').value, 2, 6, 3) + ' cube'
         : clampInt($('#cols2d').value, 2, 10, 3) + '×' + clampInt($('#rows2d').value, 2, 10, 3) + ' grid';
       const n = clampInt($('#nStart').value, 1, 12, 2);
@@ -1630,13 +1778,55 @@
     }
   }
 
+  /* ---- EWMT custom words (relational mode) ----
+     Plain text, so a reload restores it. Spoken through the same speech
+     synthesis as the classic audio stream: one word per trial, and only
+     while the Audio stream is off. */
+  const EWMT_WORDS_KEY = 'nback_ewmt_words_v1';
+
+  function loadEwmtWords() {
+    try {
+      const raw = localStorage.getItem(EWMT_WORDS_KEY);
+      if (typeof raw === 'string') return raw;
+    } catch (e) { /* no cache */ }
+    return '';
+  }
+
+  function saveEwmtWords(text) {
+    try { localStorage.setItem(EWMT_WORDS_KEY, text); } catch (e) { /* storage may be unavailable */ }
+  }
+
+  function resetEwmtWordBag(words) {
+    G.ewmtBag = words.slice();
+    // Shuffle so every word is said once before any repeats.
+    for (let i = G.ewmtBag.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const t = G.ewmtBag[i];
+      G.ewmtBag[i] = G.ewmtBag[j];
+      G.ewmtBag[j] = t;
+    }
+    G.ewmtBagPos = 0;
+  }
+
+  function nextEwmtWord(words) {
+    if (!words || !words.length) return '';
+    if (!G.ewmtBag || G.ewmtBagPos >= G.ewmtBag.length) resetEwmtWordBag(words);
+    return G.ewmtBag[G.ewmtBagPos++];
+  }
+
   /* =========================================================
      Read + validate configuration
   ========================================================= */
   function readCfg() {
+    const mode = U.mode === 'relational' ? 'relational' : 'classic';
     let streams = currentStreams();
-    streams = ORDER.filter(s => streams.includes(s));
-    if (!streams.length) throw new Error('Select at least one stimulus stream.');
+    if (mode === 'relational') {
+      streams = ['audio', 'number'].filter(s => streams.includes(s));
+      if (!streams.length) throw new Error('Select the audio or number stream.');
+    } else {
+      streams = ORDER.filter(s => s !== 'number' && streams.includes(s));
+      if (!streams.length) throw new Error('Select at least one stimulus stream.');
+    }
 
     const cols = clampInt($('#cols2d').value, 2, 10, 3);
     const rows = clampInt($('#rows2d').value, 2, 10, 3);
@@ -1650,7 +1840,13 @@
     const blockCount = clampInt($('#blockCount').value, 1, 60, 8);
     const timeLimit = clamp(Number($('#timeLimit').value) || 0, 0, 120);
     const nStart = clampInt($('#nStart').value, 1, 12, 2);
-    if (blockTrials <= nStart + 1) throw new Error('Trials per block must be at least N + 2.');
+    if (blockTrials < nStart + 2) throw new Error('Trials per block must be at least N + 2.');
+
+    const numMin = clampInt($('#numMin').value, 0, 97, 1);
+    const numMax = clampInt($('#numMax').value, 2, 99, 9);
+    if (mode === 'relational' && numMax - numMin < 2) {
+      throw new Error('The number range needs at least three values.');
+    }
 
     const matchChance = clampInt($('#matchChance').value, 5, 60, 28) / 100;
     const lureChance = clampInt($('#lureChance').value, 0, 45, 15) / 100;
@@ -1666,7 +1862,7 @@
       gen: $('#colGen').checked,
       custom: $('#colCustom').checked
     };
-    if (streams.includes('color')) {
+    if (mode === 'classic' && streams.includes('color')) {
       const count = (colorSources.standard ? STANDARD_COLORS.length : 0) +
                     (colorSources.gen ? 8 : 0) +
                     (colorSources.custom ? U.customImages.length : 0);
@@ -1681,7 +1877,7 @@
       custom: $('#audCustom').checked
     };
     const customWords = parseWords($('#customWords').value);
-    if (streams.includes('audio')) {
+    if (mode === 'classic' && streams.includes('audio')) {
       const pool = buildAudioPool(audioSel, customWords);
       if (pool.length < 2) {
         throw new Error('The audio stream needs at least two distinct sounds. Enable a source or add custom words.');
@@ -1695,8 +1891,15 @@
     }
 
     return {
+      mode: mode,
       streams: streams,
       grid: U.grid,
+      numMin: numMin,
+      numMax: numMax,
+      numCustomImg: $('#numCustomImg').checked,
+      execMode: $('#numExec').checked,
+      ewmtWordsOn: $('#ewmtWordsOn').checked,
+      ewmtWords: parseWords($('#customWordsEwmt').value),
       cols: cols, rows: rows, dx: dx, dy: dy, dz: dz,
       rotate: $('#rotateOn').checked,
       randomRot: $('#rotRandom').checked,
@@ -1727,8 +1930,27 @@
   /* =========================================================
      Pools for a session
   ========================================================= */
+  /* Relational numbers come from one contiguous range; the same items feed
+     both the spoken and the visible stream. */
+  function buildNumberPool(cfg) {
+    const out = [];
+    for (let v = cfg.numMin; v <= cfg.numMax; v++) {
+      out.push({ id: 'n' + v, value: v, label: String(v), text: String(v) });
+    }
+    return out;
+  }
+
   function buildPools(cfg) {
     const pools = {};
+    if (cfg.mode === 'relational') {
+      const nums = buildNumberPool(cfg);
+      pools.number = nums;
+      if (cfg.streams.includes('audio')) pools.audio = nums;
+      if (cfg.numCustomImg && U.customImages.length) {
+        pools.numberBg = U.customImages.map((im, i) => ({ id: 'nb' + i, img: im.img }));
+      }
+      return pools;
+    }
     const total = cfg.grid === '3d' ? cfg.dx * cfg.dy * cfg.dz : cfg.cols * cfg.rows;
     pools.position = [];
     for (let i = 0; i < total; i++) pools.position.push({ id: i, idx: i });
@@ -1802,13 +2024,106 @@
     return seq;
   }
 
+  /* ---- relational sequences ----
+     Two consecutive gaps are compared: the gap between this trial and the one
+     N steps back, and the gap between the previous trial and the one N steps
+     before it. Both gaps are absolute differences. So with N = 2 the run
+     1 4 3 6 is a target at the 6 (|6-4| = |3-1|). The first N + 1 trials have
+     no previous gap and cannot be decided. */
+  function gap(a, b) { return Math.abs(a.value - b.value); }
+  function lagGap(seq, i, n) { return gap(seq[i], seq[i - n]); }
+
+  function isRelationalMatch(seq, i, n) {
+    return i >= n + 1 && lagGap(seq, i, n) === lagGap(seq, i - 1, n);
+  }
+
+  function buildRelationalSeq(pool, trials, n, matchChance, lureChance) {
+    const seq = new Array(trials);
+    const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+    const rand = () => pick(pool);
+    for (let i = 0; i < trials; i++) {
+      if (i < n + 1) { seq[i] = rand(); continue; }
+      const base = seq[i - n];
+      const need = lagGap(seq, i - 1, n);
+      const matchCands = pool.filter(p => gap(p, base) === need);
+      const nonCands = pool.filter(p => gap(p, base) !== need);
+      const r = Math.random();
+      if (r < matchChance && matchCands.length) {
+        seq[i] = pick(matchCands);
+      } else if (r < matchChance + lureChance && nonCands.length) {
+        // A recent value that does NOT fit the relation: tempting, but wrong.
+        const recent = [];
+        for (let j = i - 1; j >= 0; j--) {
+          const it = seq[j];
+          if (gap(it, base) === need) continue;
+          if (recent.indexOf(it) === -1) recent.push(it);
+        }
+        seq[i] = recent.length ? pick(recent) : pick(nonCands);
+      } else if (nonCands.length) {
+        seq[i] = pick(nonCands);
+      } else {
+        // Range too narrow to break the relation — fall back to a target.
+        seq[i] = matchCands.length ? pick(matchCands) : base;
+      }
+    }
+    return seq;
+  }
+
+  /* ---- executive relational rule ----
+     A trial is a target when the number is exactly one more than the number N
+     steps back: with N = 2, the run 1 3 2 is a target (2 = 1 + 1). */
+  function isExecMatch(seq, i, n) {
+    return i >= n && seq[i].value === seq[i - n].value + 1;
+  }
+
+  function buildExecSeq(pool, trials, n, matchChance, lureChance) {
+    const seq = new Array(trials);
+    const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+    const rand = () => pick(pool);
+    for (let i = 0; i < trials; i++) {
+      if (i < n) { seq[i] = rand(); continue; }
+      const want = seq[i - n].value + 1;
+      const matchCands = pool.filter(p => p.value === want);
+      const nonCands = pool.filter(p => p.value !== want);
+      const r = Math.random();
+      if (r < matchChance && matchCands.length) {
+        seq[i] = matchCands[0];
+      } else if (r < matchChance + lureChance && nonCands.length) {
+        // A recent value that misses the +1 target by a hair: tempting, wrong.
+        const recent = [];
+        for (let j = i - 1; j >= 0; j--) {
+          const it = seq[j];
+          if (it.value === want) continue;
+          if (recent.indexOf(it) === -1) recent.push(it);
+        }
+        seq[i] = recent.length ? pick(recent) : pick(nonCands);
+      } else if (nonCands.length) {
+        seq[i] = pick(nonCands);
+      } else {
+        // Top of the range: the +1 target cannot exist, so repeat the value.
+        seq[i] = matchCands.length ? matchCands[0] : seq[i - n];
+      }
+    }
+    return seq;
+  }
+
   function buildBlock(cfg, n) {
     const seq = {};
     const match = {};
     for (const s of cfg.streams) {
       const pool = G.pools[s];
-      seq[s] = buildSeq(pool, cfg.blockTrials, n, cfg.matchChance, cfg.lureChance);
-      match[s] = seq[s].map((it, i) => i >= n && it.id === seq[s][i - n].id);
+      if (cfg.mode === 'relational') {
+        if (cfg.execMode) {
+          seq[s] = buildExecSeq(pool, cfg.blockTrials, n, cfg.matchChance, cfg.lureChance);
+          match[s] = seq[s].map((it, i) => isExecMatch(seq[s], i, n));
+        } else {
+          seq[s] = buildRelationalSeq(pool, cfg.blockTrials, n, cfg.matchChance, cfg.lureChance);
+          match[s] = seq[s].map((it, i) => isRelationalMatch(seq[s], i, n));
+        }
+      } else {
+        seq[s] = buildSeq(pool, cfg.blockTrials, n, cfg.matchChance, cfg.lureChance);
+        match[s] = seq[s].map((it, i) => i >= n && it.id === seq[s][i - n].id);
+      }
     }
     return { seq: seq, match: match };
   }
@@ -1834,6 +2149,8 @@
   ========================================================= */
   function hideAllTiles() {
     $$('#game .tile.show').forEach(el => el.classList.remove('show'));
+    const num = $('#numTile');
+    if (num) num.classList.remove('show');
     if (G.stim3d) {
       G.stim3d = null;
       render3D();
@@ -1841,10 +2158,19 @@
   }
 
   function buildBoard(cfg) {
+    hideAllTiles();
+    const rel = cfg.mode === 'relational';
+    $('#numStage').classList.toggle('hidden', !rel);
+    if (rel) {
+      G.d3 = null;
+      G.stim3d = null;
+      $('#board2d').classList.add('hidden');
+      $('#scene3d').classList.add('hidden');
+      return;
+    }
     const is3d = cfg.grid === '3d';
     $('#board2d').classList.toggle('hidden', is3d);
     $('#scene3d').classList.toggle('hidden', !is3d);
-    hideAllTiles();
     if (is3d) build3D(cfg);
     else build2D(cfg);
   }
@@ -2232,8 +2558,40 @@
     G.raf = 0;
   }
 
+  function renderNumberStimulus(i, cfg) {
+    if (!cfg.streams.includes('number')) return;
+    const tile = $('#numTile');
+    if (!tile) return;
+    const item = G.seq.number[i];
+    tile.textContent = String(item.value);
+    const bgPool = G.pools && G.pools.numberBg;
+    const bg = bgPool && bgPool.length
+      ? bgPool[Math.floor(Math.random() * bgPool.length)]
+      : null;
+    if (bg && bg.img) {
+      // The number stays fully black on top of the artwork.
+      tile.style.backgroundColor = '#ffffff';
+      tile.style.backgroundImage = 'url("' + bg.img + '")';
+      tile.style.backgroundSize = 'cover';
+      tile.style.backgroundPosition = 'center';
+      tile.style.backgroundRepeat = 'no-repeat';
+      tile.style.color = '#000000';
+      tile.style.textShadow = 'none';
+    } else {
+      tile.style.backgroundColor = '#ffffff';
+      tile.style.backgroundImage = 'none';
+      tile.style.color = '#000000';
+      tile.style.textShadow = 'none';
+    }
+    tile.classList.add('show');
+  }
+
   function renderStimulus(i, cfg) {
     hideAllTiles();
+    if (cfg.mode === 'relational') {
+      renderNumberStimulus(i, cfg);
+      return;
+    }
     const hasVisual = cfg.streams.some(s => s !== 'audio' && s !== 'space');
     if (!hasVisual) return;
     const idx = cfg.streams.includes('position') ? G.seq.position[i].idx : G.board.center;
@@ -2652,8 +3010,12 @@
       setTimeout(() => btn.classList.remove('press'), 150);
     });
     // Feedback lands the moment the key is pressed, not at the end of the
-    // trial: green for a true match, red for a false alarm.
-    if (G.match && G.trialIndex >= G.n) {
+    // trial: green for a true match, red for a false alarm. Relational trials
+    // only become decidable once there is a previous N-step gap (N + 1 back).
+    const scorableFrom = G.cfg.mode === 'relational'
+      ? (G.cfg.execMode ? G.n : G.n + 1)
+      : G.n;
+    if (G.match && G.trialIndex >= scorableFrom) {
       const good = !!G.match[stream][G.trialIndex];
       flashStream(stream, good);
       if (!good) errorBeep();
@@ -2666,8 +3028,11 @@
 
   function evaluateTrial(i, cfg, block) {
     let bad = false;
+    const scorableFrom = cfg.mode === 'relational'
+      ? (cfg.execMode ? G.n : G.n + 1)
+      : G.n;
     for (const s of cfg.streams) {
-      if (i < G.n) continue;
+      if (i < scorableFrom) continue;
       const m = !!G.match[s][i];
       const p = !!G.presses[s];
       const c = block.perStream[s];
@@ -2696,6 +3061,9 @@
       if (!(spatial && playPannedSpeech(side, G.seq.audio[i].text))) speak(G.seq.audio[i].text);
     } else if (spatial) {
       playSpatial(side);
+    } else if (cfg.mode === 'relational' && cfg.ewmtWordsOn && cfg.ewmtWords.length) {
+      // EWMT dual task: custom words ride along with the number trial.
+      speak(nextEwmtWord(cfg.ewmtWords));
     }
     await waitable(cfg.stimMs, token);
     if (token !== G.token) return;
@@ -2716,6 +3084,7 @@
     const built = buildBlock(cfg, n);
     G.seq = built.seq;
     G.match = built.match;
+    if (cfg.mode === 'relational') resetEwmtWordBag(cfg.ewmtWords || []);
     const counts = {};
     cfg.streams.forEach(s => { counts[s] = { hits: 0, misses: 0, fa: 0, cr: 0 }; });
     const block = {
@@ -2852,6 +3221,9 @@
     if (G.pools && G.pools.color) {
       G.pools.color.forEach(item => { if (item.img) urls.add(item.img); });
     }
+    if (G.pools && G.pools.numberBg) {
+      G.pools.numberBg.forEach(item => { if (item.img) urls.add(item.img); });
+    }
     if (cfg.colCustom && U.customImages.length) {
       U.customImages.forEach(item => { if (item.img) urls.add(item.img); });
     }
@@ -2981,6 +3353,7 @@
     G.respondOpen = false;
     stopTimer();
     stopRotation();
+    try { speechSynthesis.cancel(); } catch (e) { /* noop */ }
     clearFeedback();
     try { if ('speechSynthesis' in window) speechSynthesis.cancel(); } catch (e) { /* noop */ }
   }
@@ -3035,7 +3408,10 @@
     $('#resTime').textContent = fmtTime(G.sessionSecs || 0);
     $('#resMode').textContent = cfg.streams && cfg.streams.length
       ? cfg.streams.map(s => META[s].label).join(' + ') +
-        ' · ' + (cfg.grid === '3d' ? '3D cube' : '2D grid') +
+        ' · ' + (cfg.mode === 'relational'
+          ? 'relational' + (cfg.execMode ? ' (executive),' : ',') +
+            ' numbers ' + cfg.numMin + '–' + cfg.numMax
+          : (cfg.grid === '3d' ? '3D cube' : '2D grid')) +
         ' · ' + (cfg.autoProg ? 'auto-progression' : 'fixed N')
       : '—';
 
@@ -3221,6 +3597,9 @@
         if (which === 'grid') {
           U.grid = btn.dataset.val;
           syncGrid();
+        } else if (which === 'mode') {
+          setMode(btn.dataset.val);
+          return;
         }
         updateSetupHint();
         saveSettings();
@@ -3232,6 +3611,27 @@
     });
 
     $('#rotateOn').addEventListener('change', syncRotSpeedRow);
+    $('#numCustomImg').addEventListener('change', () => {
+      $('#numImgWrap').classList.toggle('hidden', !$('#numCustomImg').checked);
+    });
+    $('#numImgBtn').addEventListener('click', () => $('#numImgInput').click());
+    $('#customWordsEwmt').addEventListener('input', () => {
+      saveEwmtWords($('#customWordsEwmt').value);
+    });
+    $('#ewmtWordsOn').addEventListener('change', () => {
+      $('#ewmtWordsWrap').classList.toggle('hidden', !$('#ewmtWordsOn').checked);
+    });
+
+    // Mobile mode lives in the EWMT card while relational training is active,
+    // so the two checkboxes mirror each other.
+    const syncMobileMode = (on) => {
+      $('#mobileMode').checked = on;
+      $('#mobileModeEwmt').checked = on;
+      document.body.classList.toggle('mobile', on);
+      saveSettings();
+    };
+    $('#mobileMode').addEventListener('change', e => syncMobileMode(e.target.checked));
+    $('#mobileModeEwmt').addEventListener('change', e => syncMobileMode(e.target.checked));
 
     $('#voicePrepBtn').addEventListener('click', async () => {
       if (!('speechSynthesis' in window)) {
@@ -3303,25 +3703,15 @@
     $('#imgInput').addEventListener('change', async e => {
       const files = Array.from(e.target.files || []);
       e.target.value = '';
-      for (const f of files) {
-        if (U.customImages.length >= 12) { toast('Up to 12 custom images.'); break; }
-        if (!f.type.startsWith('image/')) continue;
-        try {
-          U.customImages.push(await fileToImage(f));
-        } catch (err) {
-          toast('Could not read ' + f.name + '.');
-        }
-      }
-      saveImageCache();
-      renderThumbs();
+      await addImageFiles(files);
     });
-    $('#imgThumbs').addEventListener('click', e => {
-      const btn = e.target.closest('button[data-rm]');
-      if (!btn) return;
-      U.customImages.splice(Number(btn.dataset.rm), 1);
-      saveImageCache();
-      renderThumbs();
+    $('#numImgInput').addEventListener('change', async e => {
+      const files = Array.from(e.target.files || []);
+      e.target.value = '';
+      await addImageFiles(files);
     });
+    $('#imgThumbs').addEventListener('click', removeThumb);
+    $('#numImgThumbs').addEventListener('click', removeThumb);
 
     $$('.keyBtn').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -3342,10 +3732,6 @@
     $('#setup').addEventListener('input', e => {
       if (e.target && e.target.id === 'customWords') return; // stored separately
       saveSettings();
-    });
-
-    $('#mobileMode').addEventListener('change', e => {
-      document.body.classList.toggle('mobile', e.target.checked);
     });
 
     $('#startBtn').addEventListener('click', startSession);
@@ -3406,11 +3792,13 @@
 
     applySettings(loadSettings());
 
+    applyModeUI();
     syncStreams();
     syncGrid();
     loadImageCache();
     loadVoiceManifestPhrases();
     $('#customWords').value = loadCustomWords();
+    $('#customWordsEwmt').value = loadEwmtWords();
     updateSyllableHint();
     renderThumbs();
     renderKeys();
