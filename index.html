@@ -146,6 +146,31 @@
     background:rgba(0,0,0,.72);color:#fff;font-size:11px;line-height:1;cursor:pointer;padding:0;
   }
 
+  /* Custom page background: one fixed image behind the app, dimmed so the
+     cards and text keep their contrast. */
+  body.pageBg::before{
+    content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
+    background:var(--page-bg) center/cover no-repeat;
+  }
+  body.pageBg::after{
+    content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
+    background:rgba(6,6,10,.62);
+  }
+
+  /* ---------- discord ---------- */
+  .discordBtn{
+    position:fixed;top:14px;right:16px;z-index:60;display:flex;align-items:center;gap:8px;
+    background:#5865F2;color:#fff;border:1px solid #7a86ff;border-radius:12px;padding:9px 14px;
+    font-size:13px;font-weight:650;text-decoration:none;box-shadow:0 8px 24px rgba(88,101,242,.35);
+    transition:transform .15s,background .15s;
+  }
+  .discordBtn:hover{background:#4752c4;transform:translateY(-1px)}
+  .discordBtn svg{width:18px;height:18px;display:block;fill:#fff}
+  @media (max-width:760px){
+    .discordBtn{top:10px;right:10px;padding:8px 10px;font-size:12px}
+    .discordBtn svg{width:16px;height:16px}
+  }
+
   /* ---------- setup ---------- */
   #setup{max-width:1120px;margin:0 auto;padding:var(--sp-4) var(--sp-3) 150px}
   /* 1.618 : 1 hero split; the info card is the short side, the title the long
@@ -399,6 +424,10 @@
 
 <!-- ============================ SETUP ============================ -->
 <section id="setup" class="screen">
+  <a class="discordBtn" href="https://discord.gg/GXeDSD8qmq" target="_blank" rel="noopener noreferrer" aria-label="Join our Discord">
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20.317 4.3698a19.7913 19.7913 0 0 0-4.8851-1.5152.0741.0741 0 0 0-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 0 0-.0785-.037 19.7363 19.7363 0 0 0-4.8852 1.515.0699.0699 0 0 0-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 0 0 .0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 0 0 .0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 0 0-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 0 1-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 0 1 .0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 0 1 .0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 0 1-.0066.1276 12.2986 12.2986 0 0 1-1.873.8914.0766.0766 0 0 0-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 0 0 .0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 0 0 .0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 0 0-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z"/></svg>
+    <span>Join Discord</span>
+  </a>
   <div class="setup-head">
     <div>
       <h1>N&#8209;Back</h1>
@@ -636,6 +665,15 @@
       <div id="mobileModeRow">
         <label class="chk"><input type="checkbox" id="mobileMode"><span>Mobile mode</span></label>
         <p class="note">Desktop mode shows large response buttons on the sides of the game. Mobile mode moves them to a bar along the bottom.</p>
+      </div>
+      <div id="pageBgRow" style="margin-top:4px">
+        <label class="chk"><input type="checkbox" id="pageBgOn"><span>Custom page background</span></label>
+        <div id="pageBgWrap">
+          <input type="file" id="pageBgInput" accept="image/*" class="hidden">
+          <button type="button" class="btn ghost sm" id="pageBgBtn">Upload image</button>
+          <div class="thumbs" id="pageBgThumbs"></div>
+        </div>
+        <p class="note">Set your own image behind the whole page. It is dimmed so the cards and text stay readable.</p>
       </div>
       <p class="note" style="margin-top:12px">Esc ends a running session. Space or Enter confirms block summaries.</p>
     </div>
@@ -1395,6 +1433,7 @@
     classicStreams: null,
     binding: null,
     customImages: [],
+    pageBg: '',
     keys: { position: 'a', color: 'd', shape: 's', audio: 'l', space: 'k', number: 'j' }
   };
 
@@ -1408,7 +1447,7 @@
     'audLetters', 'audNumbers', 'audSyllables', 'audCustom',
     'matchChance', 'lureChance', 'autoProg', 'upTh', 'downTh', 'nStart',
     'numMin', 'numMax', 'numCustomImg', 'ewmtWordsOn',
-    'fbBeep', 'fbColors', 'fbSide', 'mobileMode'
+    'fbBeep', 'fbColors', 'fbSide', 'mobileMode', 'pageBgOn'
   ];
 
   function collectSettings() {
@@ -1574,6 +1613,7 @@
     $('#numImgWrap').classList.toggle('hidden', !$('#numCustomImg').checked);
     $('#ewmtWordsWrap').classList.toggle('hidden', !$('#ewmtWordsOn').checked);
     $('#interfaceCard').classList.toggle('hidden', rel);
+    applyPageBg();
     $('#mobileModeEwmt').checked = $('#mobileMode').checked;
   }
 
@@ -1698,13 +1738,13 @@
     } catch (e) { /* noop */ }
   }
 
-  function fileToImage(file) {
+  function fileToImage(file, maxSize) {
     return new Promise((resolve, reject) => {
       const url = URL.createObjectURL(file);
       const img = new Image();
       img.onload = () => {
         try {
-          const max = 512;
+          const max = maxSize || 512;
           const scale = Math.min(1, max / Math.max(img.width, img.height));
           const c = document.createElement('canvas');
           c.width = Math.max(1, Math.round(img.width * scale));
@@ -1744,6 +1784,41 @@
     } catch (e) {
       toast('Images stay in memory this session — browser storage is full.');
     }
+  }
+
+  /* ---- Custom page background (classic Interface card) ----
+     A single image behind the whole page, stored as a data URL. */
+  const PAGE_BG_KEY = 'nback_page_bg_v1';
+
+  function loadPageBg() {
+    try {
+      const raw = localStorage.getItem(PAGE_BG_KEY);
+      if (typeof raw === 'string' && raw.indexOf('data:image/') === 0) U.pageBg = raw;
+    } catch (e) { /* no cache */ }
+  }
+
+  function savePageBg() {
+    try {
+      if (U.pageBg) localStorage.setItem(PAGE_BG_KEY, U.pageBg);
+      else localStorage.removeItem(PAGE_BG_KEY);
+    } catch (e) {
+      toast('Background stays for this session — browser storage is full.');
+    }
+  }
+
+  function applyPageBg() {
+    const on = !!($('#pageBgOn') && $('#pageBgOn').checked && U.pageBg && U.mode === 'classic');
+    document.body.classList.toggle('pageBg', on);
+    if (on) document.body.style.setProperty('--page-bg', 'url("' + U.pageBg + '")');
+    else document.body.style.removeProperty('--page-bg');
+  }
+
+  function renderPageBgThumb() {
+    const wrap = $('#pageBgThumbs');
+    if (!wrap) return;
+    wrap.innerHTML = U.pageBg
+      ? '<div class="thumb"><img src="' + U.pageBg + '" alt=""><button type="button" id="pageBgRemove" title="Remove image">×</button></div>'
+      : '';
   }
 
   /* ---- EWMT custom words (relational mode) ----
@@ -3651,6 +3726,39 @@
     $('#imgThumbs').addEventListener('click', removeThumb);
     $('#numImgThumbs').addEventListener('click', removeThumb);
 
+    $('#pageBgBtn').addEventListener('click', () => $('#pageBgInput').click());
+    $('#pageBgInput').addEventListener('change', async e => {
+      const f = (e.target.files || [])[0];
+      e.target.value = '';
+      if (!f || !f.type.startsWith('image/')) return;
+      try {
+        const img = await fileToImage(f, 1600);
+        U.pageBg = img.img;
+        $('#pageBgOn').checked = true;
+        savePageBg();
+        renderPageBgThumb();
+        applyPageBg();
+        saveSettings();
+      } catch (err) {
+        toast('Could not read ' + f.name + '.');
+      }
+    });
+    $('#pageBgThumbs').addEventListener('click', e => {
+      if (!e.target.closest('#pageBgRemove')) return;
+      U.pageBg = '';
+      savePageBg();
+      renderPageBgThumb();
+      applyPageBg();
+    });
+    $('#pageBgOn').addEventListener('change', () => {
+      if ($('#pageBgOn').checked && !U.pageBg) {
+        toast('Upload an image first.');
+        $('#pageBgOn').checked = false;
+      }
+      applyPageBg();
+      saveSettings();
+    });
+
     $$('.keyBtn').forEach(btn => {
       btn.addEventListener('click', () => {
         U.binding = btn.dataset.stream;
@@ -3734,11 +3842,14 @@
     syncStreams();
     syncGrid();
     loadImageCache();
+    loadPageBg();
     loadVoiceManifestPhrases();
     $('#customWords').value = loadCustomWords();
     $('#customWordsEwmt').value = loadEwmtWords();
     updateSyllableHint();
     renderThumbs();
+    renderPageBgThumb();
+    applyPageBg();
     renderKeys();
     updateTrialLen();
     updateSessionEstimate();
